@@ -1,4 +1,4 @@
-package com.paradisus.animalium.siaga_kita_flutter
+package com.paradisus.animalium.pantaura
 
 import io.flutter.embedding.android.FlutterActivity
 
