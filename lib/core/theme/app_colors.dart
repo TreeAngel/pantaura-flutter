@@ -1,6 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
-/// Semantic color palette for SiagaKita Civic Emergency.
+/// Semantic color palette for Pantaura.
 /// Derived strictly from DESIGN.md tokens.
 abstract final class AppColors {
   // Brand & Core Material 3 Colors

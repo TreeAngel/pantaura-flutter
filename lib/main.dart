@@ -3,22 +3,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/theme.dart';
 import 'core/widgets/app_button.dart';
 import 'core/widgets/incident_status_chip.dart';
+import 'features/splash/splash_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProviderScope(child: SiagaKitaApp()));
+  runApp(const ProviderScope(child: PantauraApp()));
 }
 
-class SiagaKitaApp extends StatelessWidget {
-  const SiagaKitaApp({super.key});
+class PantauraApp extends StatelessWidget {
+  const PantauraApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'SiagaKita',
+      title: 'Pantaura',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const ThemeShowcaseScreen(),
+      home: const SplashScreen(),
     );
   }
 }
@@ -30,7 +31,7 @@ class ThemeShowcaseScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SiagaKita Civic Emergency'),
+        title: const Text('Pantaura Civic Emergency'),
       ),
       body: SafeArea(
         child: ListView(

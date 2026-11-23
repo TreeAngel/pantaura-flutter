@@ -5,7 +5,7 @@ import 'app_spacing.dart';
 import 'app_status_theme.dart';
 import 'app_typography.dart';
 
-/// Central theme provider and configuration for SiagaKita Civic Emergency.
+/// Central theme provider and configuration for Pantaura.
 /// Complies with Material 3 and DESIGN.md specifications.
 abstract final class AppTheme {
   /// ColorScheme definition based on DESIGN.md
