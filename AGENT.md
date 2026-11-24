@@ -9,11 +9,11 @@ Panduan kerja, standar arsitektur, tech stack, dan instruksi khusus pengembangan
 * **Jawaban Langsung & Ringkas**:
   - Jika pengguna hanya memberikan pertanyaan, jawab langsung, to the point, dan hanya menjawab apa yang ditanyakan tanpa penjelasan panjang yang bertele-tele.
 * **Penggunaan Skill Otomatis**:
-  - Wajib secara otomatis menerapkan instruksi dan best practices dari `.gemini/skills/dart-flutter-patterns/SKILL.md` setiap kali mengerjakan kode Dart & Flutter di proyek ini tanpa perlu instruksi implisit/eksplisit.
+  - Wajib secara otomatis menerapkan instruksi dan best practices dari `.agent/skills/dart-flutter-patterns/SKILL.md` setiap kali mengerjakan kode Dart & Flutter di proyek ini tanpa perlu instruksi implisit/eksplisit.
 * **State Management**:
   - Seterusnya selalu gunakan **Riverpod** (`flutter_riverpod` & `riverpod_lint`) untuk state management di seluruh fitur aplikasi.
 * **Sinkronisasi Desain (Stitch)**:
-  - Selalu sinkronkan dan jadikan desain dari project Stitch **"Pantaura Accessible Design System"** (`projects/13707441510623217137`) serta [DESIGN.md] sebagai acuan visual utama (WCAG AAA, Elder-Friendly, touch target min 48-56px).
+  - Selalu sinkronkan dan jadikan desain dari project Stitch **"Pantaura Flutter"** (`projects/13707441510623217137`) serta [DESIGN.md] sebagai acuan visual utama (WCAG AAA, Elder-Friendly, touch target min 48-56px).
 * **Routing Menggunakan go_router**:
   - Untuk routing project flutter selalu gunakan dependensi (`go_router`).
 
@@ -24,9 +24,9 @@ Panduan kerja, standar arsitektur, tech stack, dan instruksi khusus pengembangan
 * **Platform**: Flutter (Mobile Android & iOS)
 * **SDK Constraint**: Dart `^3.14.0` / Flutter SDK
 * **Gradle & Build Toolchain Android**:
-  - **Gradle Version**: `8.14.8` (dikonfigurasi pada `gradle-wrapper.properties`)
-  - **Android Gradle Plugin (AGP)**: `8.7.0` (dikonfigurasi pada `settings.gradle.kts`)
-  - **Kotlin Version**: `2.0.20`
+  - **Gradle Version**: `9.5.0` (dikonfigurasi pada `gradle-wrapper.properties`)
+  - **Android Gradle Plugin (AGP)**: `9.3.1` (dikonfigurasi pada `settings.gradle.kts`)
+  - **Kotlin Version**: `2.4.20`
   - **CMake SDK**: `3.22.1` (diperlukan oleh paket FFI/JNI)
   - **Incremental Build**: `kotlin.incremental=false` di `gradle.properties` (untuk menghindari file-lock cache bug `.tab` di Windows).
 
@@ -91,7 +91,7 @@ lib/
    - Hindari bang operator (`!`), gunakan fallback `??` atau pattern matching.
    - Gunakan destructuring dan switch expressions untuk memproses variasi data enum/status.
 3. **Validasi Input**:
-   - Selalu lakukan validasi email (format RFC regex) dan kata sandi (minimal 8 karakter) sebelum request dikirim ke backend.
+   - Selalu lakukan validasi email (format RFC regex) dan kata sandi (minimal 12 karakter dengan setidaknya 1 huruf kapital dan 1 huruf kecil serta 1 karakter khusus) sebelum request dikirim ke backend.
 4. **Networking**:
    - Tangani error menggunakan `ApiException` terpusat agar pesan error backend selalu ramah pengguna.
    - Lampirkan token Sanctum secara otomatis via Dio interceptor.
