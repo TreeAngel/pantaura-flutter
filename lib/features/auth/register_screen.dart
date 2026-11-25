@@ -170,7 +170,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       textInputAction: TextInputAction.next,
                       enabled: !isLoading,
                       decoration: InputDecoration(
-                        hintText: 'Minimal 8 karakter',
+                        hintText: 'Minimal 12 karakter',
                         prefixIcon: const Icon(Icons.lock_outline_rounded),
                         suffixIcon: IconButton(
                           icon: Icon(

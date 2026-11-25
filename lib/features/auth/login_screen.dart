@@ -1,3 +1,4 @@
+import 'package:flutter_svg/svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -101,10 +102,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ),
                               ],
                             ),
-                            child: const Icon(
-                              Icons.shield_rounded,
-                              color: Colors.white,
-                              size: 36,
+                            child: SvgPicture.asset(
+                              'assets/images/pantaura-logo-svg.svg',
+                              width: 36,
+                              height: 36,
                             ),
                           ),
                           const SizedBox(height: AppSpacing.spaceSm),
@@ -176,7 +177,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       enabled: !isLoading,
                       onFieldSubmitted: (_) => _handleLogin(),
                       decoration: InputDecoration(
-                        hintText: 'Minimal 8 karakter',
+                        hintText: 'Minimal 12 karakter',
                         prefixIcon: const Icon(Icons.lock_outline_rounded),
                         suffixIcon: IconButton(
                           icon: Icon(

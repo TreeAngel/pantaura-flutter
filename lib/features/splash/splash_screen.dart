@@ -51,9 +51,12 @@ class _SplashScreenState extends State<SplashScreen>
         });
       } else {
         timer.cancel();
+        _stageTimer = null;
         Future.delayed(const Duration(milliseconds: 600), () {
           if (!mounted) return;
-          context.go(AppRoutes.login);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) context.go(AppRoutes.login);
+          });
         });
       }
     });
@@ -362,6 +365,7 @@ class _SplashScreenState extends State<SplashScreen>
               ClipRRect(
                 borderRadius: BorderRadius.circular(AppRadius.full),
                 child: TweenAnimationBuilder<double>(
+                  key: ValueKey(currentStage.pct),
                   tween: Tween<double>(
                     begin: 0,
                     end: currentStage.pct / 100.0,

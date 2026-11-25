@@ -46,7 +46,7 @@ Panduan kerja, standar arsitektur, tech stack, dan instruksi khusus pengembangan
 ### **Navigation & UI**
 * `go_router: ^18.1.4` — Declarative routing dengan auth guards.
 * `google_fonts: ^9.0.0` — Plus Jakarta Sans (Headlines) & Inter (Body/Labels).
-* `material_ui: ^1.1.0` — Komponen UI Material.
+* `material_ui: ^1.11.1` — Komponen UI Material.
 
 ### **Device, Maps & Hardware**
 * `flutter_map: ^8.3.2` — Visualisasi peta interaktif insiden bencana dan titik aman.

@@ -16,13 +16,25 @@ class AuthValidators {
     return null;
   }
 
-  /// Password validation (Min 8 characters)
-  static String? validatePassword(String? value, {int minLength = 8}) {
+  /// Password validation (Min 12 characters)
+  static String? validatePassword(String? value, {int minLength = 12}) {
     if (value == null || value.isEmpty) {
       return 'Kata sandi wajib diisi';
     }
     if (value.length < minLength) {
       return 'Kata sandi minimal $minLength karakter';
+    }
+    if (!value.contains(RegExp(r'[0-9]'))) {
+      return 'Kata sandi harus mengandung setidaknya satu angka';
+    }
+    if (!value.contains(RegExp(r'[a-z]'))) {
+      return 'Kata sandi harus mengandung setidaknya satu huruf kecil';
+    }
+    if (!value.contains(RegExp(r'[A-Z]'))) {
+      return 'Kata sandi harus mengandung setidaknya satu huruf besar';
+    }
+    if (!value.contains(RegExp(r'[^a-zA-Z0-9\s]'))) {
+      return 'Kata sandi harus mengandung setidaknya satu simbol khusus';
     }
     return null;
   }
@@ -42,9 +54,6 @@ class AuthValidators {
   static String? validateName(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'Nama lengkap wajib diisi';
-    }
-    if (value.trim().length < 3) {
-      return 'Nama minimal 3 karakter';
     }
     return null;
   }
