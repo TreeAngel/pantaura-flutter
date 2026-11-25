@@ -1,25 +1,27 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/routing/app_router.dart';
 import 'core/theme/theme.dart';
 import 'core/widgets/app_button.dart';
 import 'core/widgets/incident_status_chip.dart';
-import 'features/splash/splash_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const ProviderScope(child: PantauraApp()));
 }
 
-class PantauraApp extends StatelessWidget {
+class PantauraApp extends ConsumerWidget {
   const PantauraApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(appRouterProvider);
+
+    return MaterialApp.router(
       title: 'Pantaura',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const SplashScreen(),
+      routerConfig: router,
     );
   }
 }

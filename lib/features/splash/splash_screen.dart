@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import '../../core/routing/app_routes.dart';
 import '../../core/theme/theme.dart';
-import '../auth/login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -51,11 +53,7 @@ class _SplashScreenState extends State<SplashScreen>
         timer.cancel();
         Future.delayed(const Duration(milliseconds: 600), () {
           if (!mounted) return;
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => const LoginScreen(),
-            ),
-          );
+          context.go(AppRoutes.login);
         });
       }
     });
@@ -229,9 +227,10 @@ class _SplashScreenState extends State<SplashScreen>
                   color: const Color(0xFF1A446C).withValues(alpha: 0.9),
                 ),
                 child: Center(
-                  child: CustomPaint(
-                    size: const Size(64, 64),
-                    painter: _ShieldLogoPainter(),
+                  child: SvgPicture.asset(
+                    'assets/images/pantaura-logo-svg.svg',
+                    width: 64,
+                    height: 64,
                   ),
                 ),
               ),
@@ -471,77 +470,6 @@ class _SplashScreenState extends State<SplashScreen>
       ],
     );
   }
-}
-
-/// Custom Painter for Shield Logo & Signal Waves
-class _ShieldLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    final shieldPath = Path()
-      ..moveTo(w * 0.5, h * 0.08)
-      ..lineTo(w * 0.2, h * 0.22)
-      ..lineTo(w * 0.2, h * 0.45)
-      ..cubicTo(w * 0.2, h * 0.70, w * 0.35, h * 0.85, w * 0.5, h * 0.94)
-      ..cubicTo(w * 0.65, h * 0.85, w * 0.8, h * 0.70, w * 0.8, h * 0.45)
-      ..lineTo(w * 0.8, h * 0.22)
-      ..close();
-
-    // Shield fill
-    final fillPaint = Paint()
-      ..color = const Color(0xFF1891AC).withValues(alpha: 0.3)
-      ..style = PaintingStyle.fill;
-    canvas.drawPath(shieldPath, fillPaint);
-
-    // Shield stroke
-    final strokePaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeJoin = StrokeJoin.round;
-    canvas.drawPath(shieldPath, strokePaint);
-
-    // Signal Beacon Waves
-    final wavePaint = Paint()
-      ..color = const Color(0xFFD2ECF9)
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final waveRect = Rect.fromCircle(
-      center: Offset(w * 0.5, h * 0.52),
-      radius: w * 0.16,
-    );
-    canvas.drawArc(waveRect, 3.14, 3.14, false, wavePaint);
-
-    // Core Pillar (Emergency Cross / Anchor)
-    final pillarPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 3.0
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawLine(
-      Offset(w * 0.5, h * 0.44),
-      Offset(w * 0.5, h * 0.66),
-      pillarPaint,
-    );
-    canvas.drawLine(
-      Offset(w * 0.42, h * 0.55),
-      Offset(w * 0.58, h * 0.55),
-      pillarPaint,
-    );
-
-    // Bottom Node
-    final dotPaint = Paint()
-      ..color = const Color(0xFFD2ECF9)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(Offset(w * 0.5, h * 0.72), 3, dotPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// Custom Painter for Background Topographic Lines

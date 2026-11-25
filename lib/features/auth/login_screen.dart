@@ -1,11 +1,11 @@
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/routing/app_routes.dart';
 import '../../core/theme/theme.dart';
 import '../../core/utils/auth_validators.dart';
 import '../../core/widgets/app_button.dart';
-import '../../main.dart';
 import 'auth_notifier.dart';
-import 'register_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -45,9 +45,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           backgroundColor: Color(0xFF16A34A),
         ),
       );
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const ThemeShowcaseScreen()),
-      );
+      context.go(AppRoutes.home);
     }
   }
 
@@ -221,13 +219,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         GestureDetector(
                           onTap: isLoading
                               ? null
-                              : () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const RegisterScreen(),
-                                    ),
-                                  );
-                                },
+                              : () => context.push(AppRoutes.register),
                           child: Text(
                             'Daftar Warga Baru',
                             style: AppTypography.labelMd.copyWith(
