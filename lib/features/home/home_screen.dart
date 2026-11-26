@@ -5,7 +5,6 @@ import '../../core/network/api_exception.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/theme/theme.dart';
 import '../../core/widgets/app_button.dart';
-import '../../core/widgets/pantaura_bottom_nav.dart';
 import '../auth/auth_notifier.dart';
 import 'home_notifier.dart';
 import 'home_state.dart';
@@ -365,7 +364,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: const PantauraBottomNav(currentIndex: 0),
     );
   }
 }

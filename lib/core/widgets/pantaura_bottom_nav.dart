@@ -8,10 +8,12 @@ class PantauraBottomNav extends StatelessWidget {
   const PantauraBottomNav({
     super.key,
     required this.currentIndex,
+    required this.onTabSelected,
   });
 
   /// 0: Beranda, 1: Peta, 2: Riwayat, 3: Profil
   final int currentIndex;
+  final ValueChanged<int> onTabSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -38,26 +40,26 @@ class PantauraBottomNav extends StatelessWidget {
                     icon: Icons.home_rounded,
                     label: 'Beranda',
                     isActive: currentIndex == 0,
-                    onTap: () => context.go(AppRoutes.home),
+                    onTap: () => onTabSelected(0),
                   ),
                   _NavTabItem(
                     icon: Icons.explore_rounded,
                     label: 'Peta',
                     isActive: currentIndex == 1,
-                    onTap: () => context.go(AppRoutes.map),
+                    onTap: () => onTabSelected(1),
                   ),
                   const SizedBox(width: 76), // Ruang untuk Center FAB Lapor
                   _NavTabItem(
                     icon: Icons.history_rounded,
                     label: 'Riwayat',
                     isActive: currentIndex == 2,
-                    onTap: () => context.go(AppRoutes.history),
+                    onTap: () => onTabSelected(2),
                   ),
                   _NavTabItem(
                     icon: Icons.person_rounded,
                     label: 'Profil',
                     isActive: currentIndex == 3,
-                    onTap: () => context.go(AppRoutes.profile),
+                    onTap: () => onTabSelected(3),
                   ),
                 ],
               ),

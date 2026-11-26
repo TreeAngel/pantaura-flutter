@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/home/home_screen.dart';
+import '../../features/incidents/incident_detail_screen.dart';
 import '../../features/splash/splash_screen.dart';
 import '../theme/theme.dart';
 import '../widgets/pantaura_bottom_nav.dart';
@@ -25,16 +26,50 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.register,
         builder: (context, state) => const RegisterScreen(),
       ),
-      GoRoute(
-        path: AppRoutes.home,
-        builder: (context, state) => const HomeScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.map,
-        builder: (context, state) => const _PlaceholderTabScreen(
-          title: 'Peta Bencana',
-          bottomNavIndex: 1,
-        ),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return _ScaffoldWithBottomNav(navigationShell: navigationShell);
+        },
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.home,
+                builder: (context, state) => const HomeScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.map,
+                builder: (context, state) => const _PlaceholderTabScreen(
+                  title: 'Peta Bencana',
+                ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.history,
+                builder: (context, state) => const _PlaceholderTabScreen(
+                  title: 'Riwayat Laporan',
+                ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.profile,
+                builder: (context, state) => const _PlaceholderTabScreen(
+                  title: 'Profil Warga',
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.createReport,
@@ -43,41 +78,46 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
-        path: AppRoutes.history,
-        builder: (context, state) => const _PlaceholderTabScreen(
-          title: 'Riwayat Laporan',
-          bottomNavIndex: 2,
-        ),
-      ),
-      GoRoute(
-        path: AppRoutes.profile,
-        builder: (context, state) => const _PlaceholderTabScreen(
-          title: 'Profil Warga',
-          bottomNavIndex: 3,
-        ),
-      ),
-      GoRoute(
         path: AppRoutes.incidentDetailPath,
         builder: (context, state) {
           final id = state.pathParameters['id'] ?? '';
-          return _PlaceholderDetailScreen(
-            title: 'Detail Insiden',
-            subtitle: 'ID: $id',
-          );
+          return IncidentDetailScreen(incidentId: id);
         },
       ),
     ],
   );
 });
 
+class _ScaffoldWithBottomNav extends StatelessWidget {
+  const _ScaffoldWithBottomNav({
+    required this.navigationShell,
+  });
+
+  final StatefulNavigationShell navigationShell;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: navigationShell,
+      bottomNavigationBar: PantauraBottomNav(
+        currentIndex: navigationShell.currentIndex,
+        onTabSelected: (tappedIndex) {
+          navigationShell.goBranch(
+            tappedIndex,
+            initialLocation: tappedIndex == navigationShell.currentIndex,
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _PlaceholderTabScreen extends StatelessWidget {
   const _PlaceholderTabScreen({
     required this.title,
-    required this.bottomNavIndex,
   });
 
   final String title;
-  final int bottomNavIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +134,6 @@ class _PlaceholderTabScreen extends StatelessWidget {
           ),
         ),
       ),
-      bottomNavigationBar: PantauraBottomNav(currentIndex: bottomNavIndex),
     );
   }
 }
