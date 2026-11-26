@@ -6,100 +6,133 @@ import '../../core/models/api_models.dart';
 import '../../core/providers.dart';
 import 'incident_detail_state.dart';
 
-class IncidentDetailNotifier extends FamilyAsyncNotifier<IncidentDetailData, String> {
+/// Notifier untuk memuat dan memanipulasi data halaman detail insiden.
+///
+/// Riverpod 3 tidak lagi memiliki `FamilyAsyncNotifier`; argumen family
+/// diterima langsung melalui konstruktor notifier.
+class IncidentDetailNotifier extends AsyncNotifier<IncidentDetailData> {
+  IncidentDetailNotifier(this.incidentId);
+
+  final String incidentId;
+
   @override
-  Future<IncidentDetailData> build(String arg) async {
-    return _load(arg);
-  }
+  Future<IncidentDetailData> build() => _load(incidentId);
 
   Future<IncidentDetailData> _load(String incidentId) async {
     final incidentService = ref.read(incidentServiceProvider);
     final safeZoneService = ref.read(safeZoneServiceProvider);
 
+    // Fetch paralel: detail insiden + daftar posko.
     final (incident, safeZones) = await (
       incidentService.getIncidentDetail(incidentId),
       safeZoneService.getSafeZones().catchError((_) => <SafeZoneModel>[]),
     ).wait;
 
-    final timeline = _buildTimeline(incident, ascending: true);
-    final allMedia = _buildMediaList(incident);
-    final nearestSafeZone = _findNearest(safeZones, incident.latitude, incident.longitude);
+    final nearest = _findNearestSafeZone(
+      safeZones.where((zone) => zone.isActive).toList(),
+      incident.latitude,
+      incident.longitude,
+    );
 
     return IncidentDetailData(
       incident: incident,
-      timeline: timeline,
-      allMedia: allMedia,
-      nearestSafeZone: nearestSafeZone,
+      timeline: _buildTimeline(incident, ascending: true),
+      allMedia: _buildMediaList(incident),
+      nearestSafeZone: nearest.zone,
+      nearestSafeZoneDistanceKm: nearest.distanceKm,
     );
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  List<TimelineEntry> _buildTimeline(IncidentDetailModel incident, {required bool ascending}) {
-    final entries = [
+  List<TimelineEntry> _buildTimeline(
+    IncidentDetailModel incident, {
+    required bool ascending,
+  }) {
+    final entries = <TimelineEntry>[
       ...incident.reports.map(TimelineEntry.fromReport),
       ...incident.resolutions.map(TimelineEntry.fromResolution),
     ];
     entries.sort((a, b) {
-      final ta = a.createdAt ?? DateTime(0);
-      final tb = b.createdAt ?? DateTime(0);
-      return ascending ? ta.compareTo(tb) : tb.compareTo(ta);
+      final timeA = a.createdAt ?? DateTime(0);
+      final timeB = b.createdAt ?? DateTime(0);
+      return ascending ? timeA.compareTo(timeB) : timeB.compareTo(timeA);
     });
     return entries;
   }
 
+  /// Media digabung dari report + resolution, diurutkan dari yang pertama diunggah.
   List<MediaItem> _buildMediaList(IncidentDetailModel incident) {
     final items = <MediaItem>[];
     for (final report in incident.reports) {
       for (final media in report.media) {
-        items.add(MediaItem(media: media, parentDescription: report.description));
+        items.add(
+          MediaItem(media: media, parentDescription: report.description),
+        );
       }
     }
     for (final resolution in incident.resolutions) {
       for (final media in resolution.media) {
-        items.add(MediaItem(media: media, parentDescription: resolution.description));
+        items.add(
+          MediaItem(media: media, parentDescription: resolution.description),
+        );
       }
     }
     items.sort((a, b) {
-      final ta = a.media.createdAt ?? DateTime(0);
-      final tb = b.media.createdAt ?? DateTime(0);
-      return ta.compareTo(tb);
+      final timeA = a.media.createdAt ?? DateTime(0);
+      final timeB = b.media.createdAt ?? DateTime(0);
+      return timeA.compareTo(timeB);
     });
     return items;
   }
 
-  SafeZoneModel? _findNearest(List<SafeZoneModel> zones, double lat, double lng) {
-    if (zones.isEmpty) return null;
+  /// Jarak Euclidean (approx. 1 derajat ≈ 111 km) dari titik insiden.
+  ({SafeZoneModel? zone, double? distanceKm}) _findNearestSafeZone(
+    List<SafeZoneModel> zones,
+    double latitude,
+    double longitude,
+  ) {
+    if (zones.isEmpty) return (zone: null, distanceKm: null);
+
     SafeZoneModel? nearest;
-    double minDist = double.infinity;
-    for (final z in zones) {
-      final dlat = z.latitude - lat;
-      final dlng = z.longitude - lng;
-      final dist = math.sqrt(dlat * dlat + dlng * dlng);
-      if (dist < minDist) {
-        minDist = dist;
-        nearest = z;
+    var minDistance = double.infinity;
+    for (final zone in zones) {
+      final dLat = zone.latitude - latitude;
+      final dLng = zone.longitude - longitude;
+      final distance = math.sqrt(dLat * dLat + dLng * dLng);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearest = zone;
       }
     }
-    return nearest;
+    return (zone: nearest, distanceKm: minDistance * 111.0);
   }
 
-  // ── Public actions ────────────────────────────────────────────────────────
+  // ── Actions ───────────────────────────────────────────────────────────────
 
+  /// Balik urutan kronologi (asc ↔ desc).
   void toggleSort() {
     final current = state.value;
     if (current == null) return;
-    final newAsc = !current.isSortAscending;
-    final sorted = _buildTimeline(current.incident, ascending: newAsc);
-    state = AsyncData(current.copyWith(timeline: sorted, isSortAscending: newAsc));
+    final ascending = !current.isSortAscending;
+    state = AsyncData(
+      current.copyWith(
+        timeline: _buildTimeline(current.incident, ascending: ascending),
+        isSortAscending: ascending,
+      ),
+    );
   }
 
+  /// Tampilkan 10 media berikutnya di grid thumbnail.
   void showMoreMedia() {
     final current = state.value;
     if (current == null) return;
-    state = AsyncData(current.copyWith(visibleMediaCount: current.visibleMediaCount + 10));
+    state = AsyncData(
+      current.copyWith(visibleMediaCount: current.visibleMediaCount + 10),
+    );
   }
 
+  /// Konfirmasi kerumunan, lalu muat ulang data terbaru.
   Future<void> toggleConfirm(String incidentId) async {
     final current = state.value;
     if (current == null || current.isConfirmLoading) return;
@@ -107,8 +140,8 @@ class IncidentDetailNotifier extends FamilyAsyncNotifier<IncidentDetailData, Str
     state = AsyncData(current.copyWith(isConfirmLoading: true));
     try {
       await ref.read(incidentServiceProvider).toggleConfirm(incidentId);
-      // Reload fresh data after confirm
-      state = AsyncData((await _load(incidentId)).copyWith(isConfirmLoading: false));
+      final refreshed = await _load(incidentId);
+      state = AsyncData(refreshed.copyWith(isConfirmLoading: false));
     } catch (_) {
       state = AsyncData(current.copyWith(isConfirmLoading: false));
     }

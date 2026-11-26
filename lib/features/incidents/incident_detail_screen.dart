@@ -5,12 +5,36 @@ import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/models/api_models.dart';
+import '../../core/network/api_exception.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/theme/theme.dart';
 import '../../core/widgets/incident_status_chip.dart';
 import '../auth/auth_notifier.dart';
 import 'incident_detail_notifier.dart';
 import 'incident_detail_state.dart';
+
+const String _mediaPlaceholder = 'assets/images/data-not-found.png';
+
+String _formatDate(DateTime? dateTime) {
+  if (dateTime == null) return '-';
+  final hour = dateTime.hour.toString().padLeft(2, '0');
+  final minute = dateTime.minute.toString().padLeft(2, '0');
+  return '${dateTime.day}/${dateTime.month}/${dateTime.year} $hour:$minute';
+}
+
+String _formatDistance(double? distanceKm) {
+  if (distanceKm == null) return '-';
+  if (distanceKm < 1) return '${(distanceKm * 1000).round()} m';
+  return '${distanceKm.toStringAsFixed(1)} km';
+}
+
+IncidentStatus _parseStatus(String status) => switch (status) {
+  'verified' => IncidentStatus.verified,
+  'resolution_submitted' => IncidentStatus.resolutionSubmitted,
+  'resolved' => IncidentStatus.resolved,
+  'rejected' => IncidentStatus.rejected,
+  _ => IncidentStatus.unverified,
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  SCREEN
@@ -22,16 +46,20 @@ class IncidentDetailScreen extends ConsumerStatefulWidget {
   final String incidentId;
 
   @override
-  ConsumerState<IncidentDetailScreen> createState() => _IncidentDetailScreenState();
+  ConsumerState<IncidentDetailScreen> createState() =>
+      _IncidentDetailScreenState();
 }
 
 class _IncidentDetailScreenState extends ConsumerState<IncidentDetailScreen> {
+  /// Dialog darurat 112 — identik dengan home_screen.dart.
   Future<void> _showEmergency112Dialog() async {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          shape: const RoundedRectangleBorder(borderRadius: AppRadius.roundedLg),
+          shape: const RoundedRectangleBorder(
+            borderRadius: AppRadius.roundedLg,
+          ),
           title: Row(
             children: [
               const Icon(Icons.call_rounded, color: AppColors.error),
@@ -79,56 +107,50 @@ class _IncidentDetailScreenState extends ConsumerState<IncidentDetailScreen> {
     );
   }
 
+  /// Buka halaman peta dengan mengoper koordinat insiden lewat query params.
+  void _openMap(IncidentDetailModel incident) {
+    final location = Uri(
+      path: AppRoutes.map,
+      queryParameters: {
+        'lat': incident.latitude.toString(),
+        'lng': incident.longitude.toString(),
+      },
+    ).toString();
+    context.go(location);
+  }
+
   @override
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(incidentDetailProvider(widget.incidentId));
-    final authState = ref.watch(authNotifierProvider);
-    final isAuthenticated = authState is AuthAuthenticated;
+    final isAuthenticated =
+        ref.watch(authNotifierProvider) is AuthAuthenticated;
 
     return Scaffold(
       backgroundColor: AppColors.surfaceCanvas,
-      appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.onPrimary,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          tooltip: 'Kembali',
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          'Detail Insiden',
-          style: AppTypography.headlineSm.copyWith(color: AppColors.onPrimary),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.call_rounded, color: AppColors.onError),
-            style: IconButton.styleFrom(
-              backgroundColor: AppColors.error,
-              minimumSize: const Size(AppSpacing.minTouchTarget, AppSpacing.minTouchTarget),
-            ),
-            tooltip: 'Panggil Darurat 112',
-            onPressed: _showEmergency112Dialog,
-          ),
-          const SizedBox(width: AppSpacing.spaceXs),
-        ],
-      ),
+      appBar: _IncidentDetailAppBar(onEmergencyTap: _showEmergency112Dialog),
       body: detailAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _ErrorBody(message: e.toString(), onRetry: () {
-          ref.invalidate(incidentDetailProvider(widget.incidentId));
-        }),
+        loading: () => const _LoadingBody(),
+        error: (error, _) => _ErrorBody(
+          message: error is ApiException
+              ? error.message
+              : 'Gagal memuat detail insiden. Periksa koneksi internet Anda.',
+          onRetry: () =>
+              ref.invalidate(incidentDetailProvider(widget.incidentId)),
+        ),
         data: (data) => _DetailBody(
           data: data,
-          incidentId: widget.incidentId,
           isAuthenticated: isAuthenticated,
-          onToggleSort: () =>
-              ref.read(incidentDetailProvider(widget.incidentId).notifier).toggleSort(),
-          onShowMoreMedia: () =>
-              ref.read(incidentDetailProvider(widget.incidentId).notifier).showMoreMedia(),
+          onToggleSort: () => ref
+              .read(incidentDetailProvider(widget.incidentId).notifier)
+              .toggleSort(),
+          onShowMoreMedia: () => ref
+              .read(incidentDetailProvider(widget.incidentId).notifier)
+              .showMoreMedia(),
           onToggleConfirm: () => ref
               .read(incidentDetailProvider(widget.incidentId).notifier)
               .toggleConfirm(widget.incidentId),
-          onOpenMap: () => context.go(AppRoutes.map),
+          onOpenMap: () => _openMap(data.incident),
+          onAddReport: () => context.push(AppRoutes.createReport),
         ),
       ),
     );
@@ -136,8 +158,68 @@ class _IncidentDetailScreenState extends ConsumerState<IncidentDetailScreen> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  BODY
+//  APP BAR
 // ═══════════════════════════════════════════════════════════════════════════
+
+class _IncidentDetailAppBar extends StatelessWidget
+    implements PreferredSizeWidget {
+  const _IncidentDetailAppBar({required this.onEmergencyTap});
+
+  final VoidCallback onEmergencyTap;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBar(
+      backgroundColor: AppColors.surfaceCanvas,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      shape: const Border(bottom: BorderSide(color: AppColors.borderSubtle)),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textHeader),
+        tooltip: 'Kembali',
+        onPressed: () => context.pop(),
+      ),
+      title: Text(
+        'Detail Insiden Bencana',
+        style: AppTypography.headlineMd.copyWith(color: AppColors.textHeader),
+      ),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: AppSpacing.spaceXs),
+          child: IconButton(
+            icon: const Icon(Icons.call_rounded, color: AppColors.onError),
+            style: IconButton.styleFrom(
+              backgroundColor: AppColors.statusVerified,
+              minimumSize: const Size(44, 44),
+              shape: const CircleBorder(),
+            ),
+            tooltip: 'Panggilan Darurat 112',
+            onPressed: onEmergencyTap,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  LOADING / ERROR / BODY
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _LoadingBody extends StatelessWidget {
+  const _LoadingBody();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: CircularProgressIndicator(color: AppColors.primary),
+    );
+  }
+}
 
 class _ErrorBody extends StatelessWidget {
   const _ErrorBody({required this.message, required this.onRetry});
@@ -149,15 +231,28 @@ class _ErrorBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.margin),
+        padding: const EdgeInsets.all(AppSpacing.marginLg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error),
-            const SizedBox(height: AppSpacing.spaceMd),
-            Text('Gagal memuat detail insiden', style: AppTypography.headlineSm),
+            const Icon(
+              Icons.cloud_off_rounded,
+              size: 52,
+              color: AppColors.error,
+            ),
+            const SizedBox(height: AppSpacing.spaceSm),
+            Text(
+              'Gagal Memuat Detail Insiden',
+              style: AppTypography.headlineMd.copyWith(
+                color: AppColors.textHeader,
+              ),
+            ),
             const SizedBox(height: AppSpacing.spaceXs),
-            Text(message, style: AppTypography.bodySm, textAlign: TextAlign.center),
+            Text(
+              message,
+              style: AppTypography.bodyMd,
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: AppSpacing.spaceMd),
             ElevatedButton.icon(
               onPressed: onRetry,
@@ -174,322 +269,75 @@ class _ErrorBody extends StatelessWidget {
 class _DetailBody extends StatelessWidget {
   const _DetailBody({
     required this.data,
-    required this.incidentId,
     required this.isAuthenticated,
     required this.onToggleSort,
     required this.onShowMoreMedia,
     required this.onToggleConfirm,
     required this.onOpenMap,
+    required this.onAddReport,
   });
 
   final IncidentDetailData data;
-  final String incidentId;
   final bool isAuthenticated;
   final VoidCallback onToggleSort;
   final VoidCallback onShowMoreMedia;
   final VoidCallback onToggleConfirm;
   final VoidCallback onOpenMap;
+  final VoidCallback onAddReport;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: AppSpacing.space2xl),
+    return SafeArea(
+      top: false,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _DisasterStatusHeader(incident: data.incident),
-          _IncidentSummarySection(incident: data.incident),
-          const SizedBox(height: AppSpacing.spaceMd),
-          _LocationCard(incident: data.incident, onOpenMap: onOpenMap),
-          const SizedBox(height: AppSpacing.spaceMd),
-          _MediaGalleryCard(
-            allMedia: data.allMedia,
-            visibleCount: data.visibleMediaCount,
-            onShowMore: onShowMoreMedia,
-          ),
-          const SizedBox(height: AppSpacing.spaceMd),
-          _TimelineSection(
-            timeline: data.timeline,
-            isSortAscending: data.isSortAscending,
-            onToggleSort: onToggleSort,
-          ),
-          const SizedBox(height: AppSpacing.spaceMd),
-          _NearestSafeZoneCard(
-            safeZone: data.nearestSafeZone,
-            incidentLat: data.incident.latitude,
-            incidentLng: data.incident.longitude,
-          ),
-          if (isAuthenticated) ...[
-            const SizedBox(height: AppSpacing.spaceMd),
-            _CrowdConfirmButton(
-              isLoading: data.isConfirmLoading,
-              onConfirm: onToggleConfirm,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  WIDGETS
-// ═══════════════════════════════════════════════════════════════════════════
-
-// ── 1. Disaster Status Header ─────────────────────────────────────────────
-
-class _DisasterStatusHeader extends StatelessWidget {
-  const _DisasterStatusHeader({required this.incident});
-
-  final IncidentDetailModel incident;
-
-  IncidentStatus _parseStatus(String status) => switch (status) {
-        'verified' => IncidentStatus.verified,
-        'resolution_submitted' => IncidentStatus.resolutionSubmitted,
-        'resolved' => IncidentStatus.resolved,
-        'rejected' => IncidentStatus.rejected,
-        _ => IncidentStatus.unverified,
-      };
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.margin,
-        vertical: AppSpacing.spaceMd,
-      ),
-      color: AppColors.surfaceContainerLow,
-      child: Wrap(
-        spacing: AppSpacing.spaceXs,
-        runSpacing: AppSpacing.spaceXs,
-        children: [
-          _DisasterTypeChip(label: incident.disasterTypeLabel),
-          IncidentStatusChip(status: _parseStatus(incident.status)),
-        ],
-      ),
-    );
-  }
-}
-
-class _DisasterTypeChip extends StatelessWidget {
-  const _DisasterTypeChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: AppSpacing.statusChipMinHeight),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.primaryContainer,
-        borderRadius: AppRadius.roundedStandard,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.warning_rounded, size: 14, color: AppColors.onPrimaryContainer),
-          const SizedBox(width: AppSpacing.space2xs),
-          Text(
-            label.toUpperCase(),
-            style: AppTypography.labelSm.copyWith(
-              color: AppColors.onPrimaryContainer,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── 2. Incident Summary Section ───────────────────────────────────────────
-
-class _IncidentSummarySection extends StatelessWidget {
-  const _IncidentSummarySection({required this.incident});
-
-  final IncidentDetailModel incident;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.margin,
-        AppSpacing.spaceMd,
-        AppSpacing.margin,
-        0,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(incident.title, style: AppTypography.headlineLg),
-          const SizedBox(height: AppSpacing.spaceXs),
-          Text(
-            incident.description,
-            style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
-          ),
-          const SizedBox(height: AppSpacing.spaceSm),
-          _SummaryStatsRow(incident: incident),
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryStatsRow extends StatelessWidget {
-  const _SummaryStatsRow({required this.incident});
-
-  final IncidentDetailModel incident;
-
-  String _formatDate(DateTime? dt) {
-    if (dt == null) return '-';
-    return '${dt.day}/${dt.month}/${dt.year}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _StatChip(
-          icon: Icons.article_outlined,
-          label: '${incident.reportsCount} Laporan',
-        ),
-        const SizedBox(width: AppSpacing.spaceXs),
-        _StatChip(
-          icon: Icons.calendar_today_outlined,
-          label: _formatDate(incident.verifiedAt ?? incident.createdAt),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  const _StatChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.spaceSm, vertical: AppSpacing.space2xs),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: AppRadius.roundedStandard,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: AppColors.onSurfaceVariant),
-          const SizedBox(width: AppSpacing.space2xs),
-          Text(label, style: AppTypography.caption),
-        ],
-      ),
-    );
-  }
-}
-
-// ── 3. Location Card ──────────────────────────────────────────────────────
-
-class _LocationCard extends StatelessWidget {
-  const _LocationCard({required this.incident, required this.onOpenMap});
-
-  final IncidentDetailModel incident;
-  final VoidCallback onOpenMap;
-
-  @override
-  Widget build(BuildContext context) {
-    final address = incident.address?.isNotEmpty == true
-        ? incident.address!
-        : 'Lat: ${incident.latitude.toStringAsFixed(5)}, Lng: ${incident.longitude.toStringAsFixed(5)}';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.margin),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: AppRadius.roundedLg,
-          boxShadow: AppShadows.level1,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.spaceMd,
-                AppSpacing.spaceMd,
-                AppSpacing.spaceMd,
-                AppSpacing.spaceXs,
-              ),
-              child: Row(
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: AppSpacing.spaceMd),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.location_on_rounded, color: AppColors.error, size: 20),
-                  const SizedBox(width: AppSpacing.spaceXs),
-                  Expanded(
-                    child: Text(address, style: AppTypography.bodyMd),
+                  const SizedBox(height: AppSpacing.spaceMd),
+                  _MediaGalleryCard(
+                    allMedia: data.allMedia,
+                    visibleCount: data.visibleMediaCount,
+                    onShowMore: onShowMoreMedia,
+                  ),
+                  const SizedBox(height: AppSpacing.spaceMd),
+                  _ValidationBanner(incident: data.incident),
+                  _IncidentSummarySection(incident: data.incident),
+                  const SizedBox(height: AppSpacing.spaceMd),
+                  _LocationCard(incident: data.incident, onOpenMap: onOpenMap),
+                  const SizedBox(height: AppSpacing.spaceMd),
+                  _TimelineSection(
+                    timeline: data.timeline,
+                    isSortAscending: data.isSortAscending,
+                    onToggleSort: onToggleSort,
+                  ),
+                  const SizedBox(height: AppSpacing.spaceMd),
+                  _NearestSafeZoneCard(
+                    safeZone: data.nearestSafeZone,
+                    distanceKm: data.nearestSafeZoneDistanceKm,
                   ),
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.spaceMd),
-              child: SizedBox(
-                width: double.infinity,
-                height: AppSpacing.minTouchTarget,
-                child: OutlinedButton.icon(
-                  onPressed: onOpenMap,
-                  icon: const Icon(Icons.map_outlined),
-                  label: const Text('Buka Peta'),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.spaceXs),
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(AppRadius.lg),
-                bottomRight: Radius.circular(AppRadius.lg),
-              ),
-              child: SizedBox(
-                height: 160,
-                child: FlutterMap(
-                  options: MapOptions(
-                    initialCenter: LatLng(incident.latitude, incident.longitude),
-                    initialZoom: 15,
-                    interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.paradisus.animalium.pantaura',
-                    ),
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: LatLng(incident.latitude, incident.longitude),
-                          width: 32,
-                          height: 32,
-                          child: const Icon(
-                            Icons.location_pin,
-                            color: AppColors.error,
-                            size: 32,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+          _DetailActionBar(
+            isAuthenticated: isAuthenticated,
+            isConfirmLoading: data.isConfirmLoading,
+            onAddReport: onAddReport,
+            onConfirm: onToggleConfirm,
+          ),
+        ],
       ),
     );
   }
 }
 
-// ── 4. Media Gallery Card ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  1. MEDIA GALLERY
+// ═══════════════════════════════════════════════════════════════════════════
 
 class _MediaGalleryCard extends StatefulWidget {
   const _MediaGalleryCard({
@@ -509,32 +357,576 @@ class _MediaGalleryCard extends StatefulWidget {
 class _MediaGalleryCardState extends State<_MediaGalleryCard> {
   int _selectedIndex = 0;
 
-  static const String _placeholder = 'assets/images/data-not-found.png';
-
   @override
-  void didUpdateWidget(_MediaGalleryCard oldWidget) {
+  void didUpdateWidget(covariant _MediaGalleryCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_selectedIndex >= widget.allMedia.length && widget.allMedia.isNotEmpty) {
+    if (widget.allMedia.isNotEmpty &&
+        _selectedIndex >= widget.allMedia.length) {
       _selectedIndex = 0;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.allMedia.isEmpty) {
-      return _buildEmptyCard();
-    }
+    final media = widget.allMedia;
+    if (media.isEmpty) return const _EmptyMediaCard();
 
-    final selected = widget.allMedia[_selectedIndex];
-    final showMoreNeeded = widget.allMedia.length > widget.visibleCount;
-    // Visible thumbnails: show visibleCount - 1 actual thumbnails + "show more" if needed,
-    // or all visibleCount thumbnails if no show-more needed.
-    final thumbCount = showMoreNeeded ? widget.visibleCount - 1 : widget.visibleCount;
-    final visibleMedia = widget.allMedia.take(thumbCount).toList();
+    final selected = media[_selectedIndex];
+    final showMoreNeeded = media.length > widget.visibleCount;
+    // Tombol "tampilkan lebih banyak" menempati slot ke-10 (baris 2, kolom 5).
+    final thumbnailCount = showMoreNeeded
+        ? widget.visibleCount - 1
+        : widget.visibleCount;
+    final visibleMedia = media.take(thumbnailCount).toList();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.margin),
       child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: AppRadius.roundedLg,
+          boxShadow: AppShadows.level1,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.network(
+                    selected.media.url,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) =>
+                        Image.asset(_mediaPlaceholder, fit: BoxFit.cover),
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.onPrimary,
+                        ),
+                      );
+                    },
+                  ),
+                  const Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0x6600476E),
+                            Colors.transparent,
+                            Color(0xCC00476E),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: AppSpacing.spaceSm,
+                    right: AppSpacing.spaceSm,
+                    child: _MediaCounterBadge(
+                      current: _selectedIndex + 1,
+                      total: media.length,
+                    ),
+                  ),
+                  Positioned(
+                    left: AppSpacing.spaceSm,
+                    right: AppSpacing.spaceSm,
+                    bottom: AppSpacing.spaceSm,
+                    child: _HeroCaption(item: selected),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.spaceXs + 4),
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 5,
+                  crossAxisSpacing: 4,
+                  mainAxisSpacing: 4,
+                  childAspectRatio: 1.25,
+                ),
+                itemCount: visibleMedia.length + (showMoreNeeded ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (showMoreNeeded && index == visibleMedia.length) {
+                    return _ShowMoreButton(onTap: widget.onShowMore);
+                  }
+                  final item = visibleMedia[index];
+                  return _ThumbnailItem(
+                    item: item,
+                    isSelected: media.indexOf(item) == _selectedIndex,
+                    onTap: () =>
+                        setState(() => _selectedIndex = media.indexOf(item)),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MediaCounterBadge extends StatelessWidget {
+  const _MediaCounterBadge({required this.current, required this.total});
+
+  final int current;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.spaceSm,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.inverseSurface.withValues(alpha: 0.85),
+        borderRadius: AppRadius.roundedFull,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.photo_camera_outlined,
+            size: 16,
+            color: AppColors.inverseOnSurface,
+          ),
+          const SizedBox(width: AppSpacing.space2xs),
+          Text(
+            '$current/$total Media Lapangan',
+            style: AppTypography.labelSm.copyWith(
+              color: AppColors.inverseOnSurface,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroCaption extends StatelessWidget {
+  const _HeroCaption({required this.item});
+
+  final MediaItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          item.parentDescription,
+          style: AppTypography.headlineSm.copyWith(
+            color: AppColors.onPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 2),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.schedule_rounded,
+              size: 14,
+              color: AppColors.surfaceTintIce,
+            ),
+            const SizedBox(width: AppSpacing.space2xs),
+            Text(
+              'Diunggah ${_formatDate(item.media.createdAt)}',
+              style: AppTypography.caption.copyWith(
+                color: AppColors.surfaceTintIce,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ThumbnailItem extends StatelessWidget {
+  const _ThumbnailItem({
+    required this.item,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final MediaItem item;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: AppRadius.roundedSm,
+          border: isSelected
+              ? Border.all(color: AppColors.primary, width: 2)
+              : null,
+        ),
+        child: Opacity(
+          opacity: isSelected ? 1.0 : 0.6,
+          child: Image.network(
+            item.media.url,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) =>
+                Image.asset(_mediaPlaceholder, fit: BoxFit.cover),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShowMoreButton extends StatelessWidget {
+  const _ShowMoreButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppRadius.roundedSm,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerLow,
+          borderRadius: AppRadius.roundedSm,
+          border: Border.all(color: AppColors.outlineVariant),
+        ),
+        child: Center(
+          child: Text(
+            '+ Lainnya',
+            textAlign: TextAlign.center,
+            style: AppTypography.labelSm.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w700,
+              fontSize: 10,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyMediaCard extends StatelessWidget {
+  const _EmptyMediaCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.margin),
+      child: Container(
+        height: 180,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: AppRadius.roundedLg,
+          boxShadow: AppShadows.level1,
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(_mediaPlaceholder, height: 80),
+              const SizedBox(height: AppSpacing.spaceXs),
+              Text('Belum ada foto dokumentasi', style: AppTypography.caption),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  2. VALIDATION BANNER
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _ValidationBanner extends StatelessWidget {
+  const _ValidationBanner({required this.incident});
+
+  final IncidentDetailModel incident;
+
+  @override
+  Widget build(BuildContext context) {
+    if (incident.status != 'verified') return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.margin),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: AppSpacing.spaceMd),
+        padding: const EdgeInsets.all(AppSpacing.spaceMd),
+        decoration: BoxDecoration(
+          color: AppColors.statusVerifiedBg,
+          borderRadius: AppRadius.roundedLg,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: AppSpacing.minTouchTarget,
+              height: AppSpacing.minTouchTarget,
+              decoration: BoxDecoration(
+                color: AppColors.statusVerified,
+                borderRadius: AppRadius.roundedMd,
+              ),
+              child: const Icon(
+                Icons.verified_user_rounded,
+                color: AppColors.onPrimary,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.spaceSm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: AppSpacing.spaceXs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.statusVerified,
+                          borderRadius: AppRadius.roundedStandard,
+                        ),
+                        child: Text(
+                          'VALIDASI LAPANGAN',
+                          style: AppTypography.labelSm.copyWith(
+                            color: AppColors.onPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        'Pembaruan: ${_formatDate(incident.verifiedAt)}',
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.statusVerified,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.spaceXs),
+                  Text(
+                    (incident.statusLabel.isNotEmpty
+                            ? incident.statusLabel
+                            : 'Terkonfirmasi aktif')
+                        .toUpperCase(),
+                    style: AppTypography.headlineMd.copyWith(
+                      color: AppColors.statusVerified,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.space2xs),
+                  Text(
+                    'Kejadian ini telah divalidasi oleh tim berwenang dan relawan lapangan.',
+                    style: AppTypography.bodySm.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  3. SUMMARY (CHIP + TITLE)
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _IncidentSummarySection extends StatelessWidget {
+  const _IncidentSummarySection({required this.incident});
+
+  final IncidentDetailModel incident;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.margin),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.spaceMd),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: AppRadius.roundedLg,
+          boxShadow: AppShadows.level1,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: AppSpacing.spaceXs,
+              runSpacing: AppSpacing.spaceXs,
+              children: [
+                _DisasterTypeChip(label: incident.disasterTypeLabel),
+                IncidentStatusChip(
+                  status: _parseStatus(incident.status),
+                  customLabel: incident.statusLabel.isEmpty
+                      ? null
+                      : incident.statusLabel.toUpperCase(),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.spaceSm),
+            Text(
+              incident.title,
+              style: AppTypography.headlineLg.copyWith(
+                color: AppColors.textHeader,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.spaceXs),
+            Text(
+              incident.description,
+              style: AppTypography.bodyMd.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.spaceSm),
+            _SummaryStatsRow(incident: incident),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DisasterTypeChip extends StatelessWidget {
+  const _DisasterTypeChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(
+        minHeight: AppSpacing.statusChipMinHeight,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceTintIce,
+        borderRadius: AppRadius.roundedStandard,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.flood_rounded, size: 18, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.space2xs),
+          Text(
+            label,
+            style: AppTypography.labelSm.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryStatsRow extends StatelessWidget {
+  const _SummaryStatsRow({required this.incident});
+
+  final IncidentDetailModel incident;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: AppSpacing.spaceXs,
+      runSpacing: AppSpacing.spaceXs,
+      children: [
+        _StatChip(
+          icon: Icons.article_outlined,
+          label: '${incident.reportsCount} Laporan',
+        ),
+        _StatChip(
+          icon: Icons.calendar_today_outlined,
+          label: _formatDate(incident.verifiedAt ?? incident.createdAt),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.spaceSm,
+        vertical: AppSpacing.space2xs,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLow,
+        borderRadius: AppRadius.roundedStandard,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.onSurfaceVariant),
+          const SizedBox(width: AppSpacing.space2xs),
+          Text(label, style: AppTypography.caption),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  4. LOCATION CARD + STATIC MAP
+// ═══════════════════════════════════════════════════════════════════════════
+
+class _LocationCard extends StatelessWidget {
+  const _LocationCard({required this.incident, required this.onOpenMap});
+
+  final IncidentDetailModel incident;
+  final VoidCallback onOpenMap;
+
+  @override
+  Widget build(BuildContext context) {
+    final address = incident.address?.trim();
+    final displayAddress = (address != null && address.isNotEmpty)
+        ? address
+        : 'Lat: ${incident.latitude.toStringAsFixed(5)}, '
+              'Lng: ${incident.longitude.toStringAsFixed(5)}';
+    final center = LatLng(incident.latitude, incident.longitude);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.margin),
+      child: Container(
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: AppRadius.roundedLg,
@@ -550,90 +942,161 @@ class _MediaGalleryCardState extends State<_MediaGalleryCard> {
                 AppSpacing.spaceMd,
                 AppSpacing.spaceXs,
               ),
-              child: Text('Foto & Dokumentasi', style: AppTypography.headlineSm),
-            ),
-            // Main image viewer
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(0),
-                  topRight: Radius.circular(0),
-                ),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.network(
-                      selected.media.url,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Image.asset(
-                        _placeholder,
-                        fit: BoxFit.cover,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.location_on_rounded,
+                    color: AppColors.statusVerified,
+                    size: 24,
+                  ),
+                  const SizedBox(width: AppSpacing.spaceXs),
+                  Expanded(
+                    child: Text(
+                      displayAddress,
+                      style: AppTypography.bodyMd.copyWith(
+                        color: AppColors.textPrimary,
                       ),
-                      loadingBuilder: (context, child, progress) {
-                        if (progress == null) return child;
-                        return const Center(child: CircularProgressIndicator());
-                      },
                     ),
-                    // Image title overlay
-                    if (selected.parentDescription.isNotEmpty)
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.spaceMd,
-                            vertical: AppSpacing.spaceXs,
-                          ),
-                          decoration: const BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Colors.transparent, Colors.black54],
-                            ),
-                          ),
-                          child: Text(
-                            selected.parentDescription,
-                            style: AppTypography.caption.copyWith(color: Colors.white),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.spaceMd,
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                height: AppSpacing.minTouchTarget,
+                child: OutlinedButton.icon(
+                  onPressed: onOpenMap,
+                  icon: const Icon(Icons.near_me_rounded),
+                  label: const Text('Buka di Peta'),
                 ),
               ),
             ),
-            // Thumbnail grid (5 columns)
+            const SizedBox(height: AppSpacing.spaceXs),
+            Stack(
+              children: [
+                SizedBox(
+                  height: 176,
+                  width: double.infinity,
+                  child: FlutterMap(
+                    options: MapOptions(
+                      initialCenter: center,
+                      initialZoom: 15,
+                      // Peta preview tidak bisa digeser / di-zoom.
+                      interactionOptions: const InteractionOptions(
+                        flags: InteractiveFlag.none,
+                      ),
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName:
+                            'com.paradisus.animalium.pantaura',
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: center,
+                            width: 32,
+                            height: 32,
+                            child: const Icon(
+                              Icons.location_pin,
+                              color: AppColors.statusVerified,
+                              size: 32,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  left: AppSpacing.spaceXs,
+                  bottom: AppSpacing.spaceXs,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.spaceXs,
+                      vertical: AppSpacing.space2xs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceCard.withValues(alpha: 0.9),
+                      borderRadius: AppRadius.roundedStandard,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.map_outlined,
+                          size: 14,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: AppSpacing.space2xs),
+                        Text(
+                          '${incident.latitude.toStringAsFixed(4)}, '
+                          '${incident.longitude.toStringAsFixed(4)}',
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
             Padding(
               padding: const EdgeInsets.all(AppSpacing.spaceMd),
-              child: GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 5,
-                  crossAxisSpacing: 4,
-                  mainAxisSpacing: 4,
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceTintIce.withValues(alpha: 0.6),
+                  borderRadius: AppRadius.roundedMd,
                 ),
-                itemCount: visibleMedia.length + (showMoreNeeded ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (showMoreNeeded && index == visibleMedia.length) {
-                    return _ShowMoreButton(onTap: widget.onShowMore);
-                  }
-                  final item = visibleMedia[index];
-                  final isSelected = widget.allMedia.indexOf(item) == _selectedIndex;
-                  return _ThumbnailItem(
-                    item: item,
-                    isSelected: isSelected,
-                    placeholder: _placeholder,
-                    onTap: () {
-                      setState(() {
-                        _selectedIndex = widget.allMedia.indexOf(item);
-                      });
-                    },
-                  );
-                },
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: const BoxDecoration(
+                        color: AppColors.statusResolution,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.groups_rounded,
+                        color: AppColors.onPrimary,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.spaceSm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Multiple Reports, One Incident',
+                            style: AppTypography.labelMd.copyWith(
+                              color: AppColors.textHeader,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Digabungkan dari ${incident.reportsCount} laporan warga & relawan untuk penanganan terpadu.',
+                            style: AppTypography.caption.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -641,96 +1104,11 @@ class _MediaGalleryCardState extends State<_MediaGalleryCard> {
       ),
     );
   }
-
-  Widget _buildEmptyCard() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.margin),
-      child: Container(
-        height: 180,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: AppRadius.roundedLg,
-          boxShadow: AppShadows.level1,
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.asset('assets/images/data-not-found.png', height: 80),
-              const SizedBox(height: AppSpacing.spaceXs),
-              Text('Belum ada foto dokumentasi', style: AppTypography.caption),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
-class _ThumbnailItem extends StatelessWidget {
-  const _ThumbnailItem({
-    required this.item,
-    required this.isSelected,
-    required this.placeholder,
-    required this.onTap,
-  });
-
-  final MediaItem item;
-  final bool isSelected;
-  final String placeholder;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: AppRadius.roundedSm,
-          border: isSelected
-              ? Border.all(color: AppColors.primary, width: 2)
-              : null,
-        ),
-        child: ClipRRect(
-          borderRadius: AppRadius.roundedSm,
-          child: Opacity(
-            opacity: isSelected ? 1.0 : 0.6,
-            child: Image.network(
-              item.media.url,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Image.asset(placeholder, fit: BoxFit.cover),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ShowMoreButton extends StatelessWidget {
-  const _ShowMoreButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLow,
-          borderRadius: AppRadius.roundedSm,
-          border: Border.all(color: AppColors.outlineVariant),
-        ),
-        child: const Center(
-          child: Icon(Icons.add_rounded, size: 20, color: AppColors.onSurfaceVariant),
-        ),
-      ),
-    );
-  }
-}
-
-// ── 5. Timeline Section ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  5. TIMELINE
+// ═══════════════════════════════════════════════════════════════════════════
 
 class _TimelineSection extends StatelessWidget {
   const _TimelineSection({
@@ -748,6 +1126,7 @@ class _TimelineSection extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.margin),
       child: Container(
+        padding: const EdgeInsets.all(AppSpacing.spaceMd),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: AppRadius.roundedLg,
@@ -756,32 +1135,48 @@ class _TimelineSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.spaceMd,
-                AppSpacing.spaceMd,
-                AppSpacing.spaceMd,
-                AppSpacing.spaceXs,
-              ),
-              child: Row(
-                children: [
-                  Text('Kronologi Laporan', style: AppTypography.headlineSm),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: onToggleSort,
+            Row(
+              children: [
+                const Icon(
+                  Icons.history_rounded,
+                  size: 22,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: AppSpacing.spaceXs),
+                Expanded(
+                  child: Text(
+                    'Kronologi Laporan Lapangan',
+                    style: AppTypography.headlineSm.copyWith(
+                      color: AppColors.textHeader,
+                    ),
+                  ),
+                ),
+                InkWell(
+                  onTap: onToggleSort,
+                  borderRadius: AppRadius.roundedFull,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Container(
-                      constraints: const BoxConstraints(minHeight: AppSpacing.statusChipMinHeight),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      constraints: const BoxConstraints(
+                        minHeight: AppSpacing.statusChipMinHeight,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceContainer,
-                        borderRadius: AppRadius.roundedStandard,
+                        color: AppColors.surfaceTintIce,
+                        borderRadius: AppRadius.roundedFull,
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            '${timeline.length} laporan',
-                            style: AppTypography.labelSm,
+                            '${timeline.length} Laporan',
+                            style: AppTypography.labelSm.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                           const SizedBox(width: AppSpacing.space2xs),
                           Icon(
@@ -795,9 +1190,10 @@ class _TimelineSection extends StatelessWidget {
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+            const SizedBox(height: AppSpacing.spaceXs),
             if (timeline.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(AppSpacing.spaceMd),
@@ -808,21 +1204,21 @@ class _TimelineSection extends StatelessWidget {
                 constraints: const BoxConstraints(maxHeight: 400),
                 child: ListView.separated(
                   shrinkWrap: true,
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.spaceMd,
-                    0,
-                    AppSpacing.spaceMd,
-                    AppSpacing.spaceMd,
+                  padding: const EdgeInsets.only(
+                    top: AppSpacing.space2xs,
+                    right: AppSpacing.space2xs,
                   ),
                   itemCount: timeline.length,
-                  separatorBuilder: (_, __) => Padding(
-                    padding: const EdgeInsets.only(left: 24 + AppSpacing.spaceSm),
-                    child: Container(height: 24, width: 2, color: AppColors.outlineVariant),
+                  separatorBuilder: (_, _) => Padding(
+                    padding: const EdgeInsets.only(left: 23),
+                    child: Container(
+                      height: 20,
+                      width: 2,
+                      color: AppColors.surfaceContainerHighest,
+                    ),
                   ),
-                  itemBuilder: (context, index) => _TimelineEntryTile(
-                    entry: timeline[index],
-                    isLast: index == timeline.length - 1,
-                  ),
+                  itemBuilder: (context, index) =>
+                      _TimelineEntryTile(entry: timeline[index]),
                 ),
               ),
           ],
@@ -833,84 +1229,112 @@ class _TimelineSection extends StatelessWidget {
 }
 
 class _TimelineEntryTile extends StatelessWidget {
-  const _TimelineEntryTile({required this.entry, required this.isLast});
+  const _TimelineEntryTile({required this.entry});
 
   final TimelineEntry entry;
-  final bool isLast;
-
-  String _formatDate(DateTime? dt) {
-    if (dt == null) return '-';
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    return '${dt.day}/${dt.month}/${dt.year} $h:$m';
-  }
 
   @override
   Widget build(BuildContext context) {
     final isReport = entry.type == TimelineEntryType.report;
-    final badgeColor = isReport ? AppColors.statusVerifiedBg : AppColors.statusResolvedBg;
+    final badgeColor = isReport
+        ? AppColors.primaryContainer
+        : AppColors.statusResolvedBg;
     final badgeText = isReport ? 'Laporan' : 'Resolusi';
-    final badgeTextColor = isReport ? AppColors.statusVerified : AppColors.statusResolved;
+    final badgeTextColor = isReport
+        ? AppColors.onPrimaryContainer
+        : AppColors.statusResolved;
+    final firstMediaUrl = entry.media.isEmpty ? null : entry.media.first.url;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Avatar / photo
+        Container(
+          width: 12,
+          height: 12,
+          margin: const EdgeInsets.only(top: 18, right: 11),
+          decoration: BoxDecoration(
+            color: isReport
+                ? AppColors.statusVerified
+                : AppColors.statusResolved,
+            shape: BoxShape.circle,
+          ),
+        ),
         ClipRRect(
-          borderRadius: AppRadius.roundedFull,
+          borderRadius: AppRadius.roundedMd,
           child: SizedBox(
             width: 48,
             height: 48,
-            child: entry.media.isNotEmpty
-                ? Image.network(
-                    entry.media.first.url,
+            child: firstMediaUrl == null
+                ? _TimelineAvatarPlaceholder(isReport: isReport)
+                : Image.network(
+                    firstMediaUrl,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _AvatarPlaceholder(isReport: isReport),
-                  )
-                : _AvatarPlaceholder(isReport: isReport),
+                    errorBuilder: (_, _, _) =>
+                        _TimelineAvatarPlaceholder(isReport: isReport),
+                  ),
           ),
         ),
         const SizedBox(width: AppSpacing.spaceSm),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: badgeColor,
-                      borderRadius: AppRadius.roundedSm,
-                    ),
-                    child: Text(
-                      badgeText,
-                      style: AppTypography.labelSm.copyWith(
-                        color: badgeTextColor,
-                        fontSize: 10,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: AppSpacing.spaceXs),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerLow,
+              borderRadius: AppRadius.roundedMd,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        entry.authorName ?? 'Anonim',
+                        style: AppTypography.labelMd.copyWith(
+                          color: AppColors.textHeader,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: AppSpacing.space2xs),
+                    Text(
+                      _formatDate(entry.createdAt),
+                      style: AppTypography.caption,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.space2xs),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
                   ),
-                  const SizedBox(width: AppSpacing.space2xs),
-                  Flexible(
-                    child: Text(
-                      entry.authorName ?? 'Anonim',
-                      style: AppTypography.labelSm,
-                      overflow: TextOverflow.ellipsis,
+                  decoration: BoxDecoration(
+                    color: badgeColor,
+                    borderRadius: AppRadius.roundedSm,
+                  ),
+                  child: Text(
+                    badgeText,
+                    style: AppTypography.labelSm.copyWith(
+                      color: badgeTextColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.space2xs),
-              Text(
-                entry.description,
-                style: AppTypography.bodySm,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: AppSpacing.space2xs),
-              Text(_formatDate(entry.createdAt), style: AppTypography.caption),
-            ],
+                ),
+                const SizedBox(height: AppSpacing.space2xs),
+                Text(
+                  entry.description,
+                  style: AppTypography.bodySm.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -918,8 +1342,8 @@ class _TimelineEntryTile extends StatelessWidget {
   }
 }
 
-class _AvatarPlaceholder extends StatelessWidget {
-  const _AvatarPlaceholder({required this.isReport});
+class _TimelineAvatarPlaceholder extends StatelessWidget {
+  const _TimelineAvatarPlaceholder({required this.isReport});
 
   final bool isReport;
 
@@ -928,7 +1352,7 @@ class _AvatarPlaceholder extends StatelessWidget {
     return Container(
       color: isReport ? AppColors.statusVerifiedBg : AppColors.statusResolvedBg,
       child: Icon(
-        isReport ? Icons.article_rounded : Icons.check_circle_rounded,
+        isReport ? Icons.article_rounded : Icons.task_alt_rounded,
         color: isReport ? AppColors.statusVerified : AppColors.statusResolved,
         size: 24,
       ),
@@ -936,91 +1360,162 @@ class _AvatarPlaceholder extends StatelessWidget {
   }
 }
 
-// ── 6. Nearest Safe Zone Card ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  6. NEAREST SAFE ZONE
+// ═══════════════════════════════════════════════════════════════════════════
 
 class _NearestSafeZoneCard extends StatelessWidget {
   const _NearestSafeZoneCard({
     required this.safeZone,
-    required this.incidentLat,
-    required this.incidentLng,
+    required this.distanceKm,
   });
 
   final SafeZoneModel? safeZone;
-  final double incidentLat;
-  final double incidentLng;
-
-  String _distanceLabel(SafeZoneModel zone) {
-    final dlat = zone.latitude - incidentLat;
-    final dlng = zone.longitude - incidentLng;
-    // 1 degree ≈ 111 km
-    final km = (111.0 * (dlat * dlat + dlng * dlng));
-    return km < 1 ? '< 1 km' : '${km.toStringAsFixed(1)} km';
-  }
+  final double? distanceKm;
 
   @override
   Widget build(BuildContext context) {
+    final zone = safeZone;
+    final zoneAddress = zone?.address;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.margin),
       child: Container(
         width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.spaceMd),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: AppRadius.roundedLg,
           boxShadow: AppShadows.level1,
         ),
-        padding: const EdgeInsets.all(AppSpacing.spaceMd),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.local_hospital_rounded, color: AppColors.primary, size: 20),
+                const Icon(
+                  Icons.health_and_safety_outlined,
+                  size: 22,
+                  color: AppColors.statusVerified,
+                ),
                 const SizedBox(width: AppSpacing.spaceXs),
-                Text('Posko Terdekat', style: AppTypography.headlineSm),
+                Expanded(
+                  child: Text(
+                    'Posko & Bantuan Terdekat',
+                    style: AppTypography.headlineSm.copyWith(
+                      color: AppColors.textHeader,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.statusResolvedBg,
+                    borderRadius: AppRadius.roundedFull,
+                  ),
+                  child: Text(
+                    'Siaga 24 Jam',
+                    style: AppTypography.labelSm.copyWith(
+                      color: AppColors.statusResolved,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: AppSpacing.spaceSm),
-            if (safeZone == null)
-              Text('Tidak ada posko terdekat yang ditemukan.', style: AppTypography.caption)
+            if (zone == null)
+              Text(
+                'Tidak ada posko terdekat yang ditemukan.',
+                style: AppTypography.caption,
+              )
             else ...[
-              Text(safeZone!.name, style: AppTypography.labelLg),
-              const SizedBox(height: AppSpacing.space2xs),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerLow,
-                      borderRadius: AppRadius.roundedSm,
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLow,
+                  borderRadius: AppRadius.roundedMd,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      zone.name,
+                      style: AppTypography.headlineSm.copyWith(
+                        color: AppColors.textHeader,
+                      ),
                     ),
-                    child: Text(safeZone!.type, style: AppTypography.caption),
-                  ),
-                  const SizedBox(width: AppSpacing.spaceXs),
-                  Icon(Icons.near_me_rounded, size: 12, color: AppColors.onSurfaceVariant),
-                  const SizedBox(width: 2),
-                  Text(_distanceLabel(safeZone!), style: AppTypography.caption),
-                ],
+                    const SizedBox(height: AppSpacing.space2xs),
+                    Wrap(
+                      spacing: AppSpacing.spaceXs,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (zone.type.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceContainer,
+                              borderRadius: AppRadius.roundedSm,
+                            ),
+                            child: Text(
+                              zone.type,
+                              style: AppTypography.caption,
+                            ),
+                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.near_me_rounded,
+                              size: 14,
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: AppSpacing.space2xs),
+                            Text(
+                              'Jarak ${_formatDistance(distanceKm)}',
+                              style: AppTypography.caption,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    if (zone.capacity != null) ...[
+                      const SizedBox(height: AppSpacing.space2xs),
+                      Text(
+                        'Kapasitas: ${zone.capacity} orang',
+                        style: AppTypography.bodySm,
+                      ),
+                    ],
+                    if (zoneAddress != null && zoneAddress.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.space2xs),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.location_on_outlined,
+                            size: 14,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: AppSpacing.space2xs),
+                          Expanded(
+                            child: Text(
+                              zoneAddress,
+                              style: AppTypography.caption,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
               ),
-              if (safeZone!.address?.isNotEmpty == true) ...[
-                const SizedBox(height: AppSpacing.space2xs),
-                Row(
-                  children: [
-                    const Icon(Icons.location_on_outlined, size: 14, color: AppColors.onSurfaceVariant),
-                    const SizedBox(width: 2),
-                    Expanded(child: Text(safeZone!.address!, style: AppTypography.caption)),
-                  ],
-                ),
-              ],
-              if (safeZone!.capacity != null) ...[
-                const SizedBox(height: AppSpacing.space2xs),
-                Row(
-                  children: [
-                    const Icon(Icons.people_outline_rounded, size: 14, color: AppColors.onSurfaceVariant),
-                    const SizedBox(width: 2),
-                    Text('Kapasitas: ${safeZone!.capacity}', style: AppTypography.caption),
-                  ],
-                ),
-              ],
             ],
           ],
         ),
@@ -1029,43 +1524,110 @@ class _NearestSafeZoneCard extends StatelessWidget {
   }
 }
 
-// ── 7. Crowd Confirm Button ───────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  7. STICKY ACTION FOOTER
+// ═══════════════════════════════════════════════════════════════════════════
 
-class _CrowdConfirmButton extends StatelessWidget {
-  const _CrowdConfirmButton({
-    required this.isLoading,
+class _DetailActionBar extends StatelessWidget {
+  const _DetailActionBar({
+    required this.isAuthenticated,
+    required this.isConfirmLoading,
+    required this.onAddReport,
     required this.onConfirm,
   });
+
+  final bool isAuthenticated;
+  final bool isConfirmLoading;
+  final VoidCallback onAddReport;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.margin,
+        AppSpacing.spaceXs + 4,
+        AppSpacing.margin,
+        AppSpacing.spaceXs + 4,
+      ),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceCanvas,
+        boxShadow: AppShadows.level4,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(child: _AddReportButton(onTap: onAddReport)),
+              if (isAuthenticated) ...[
+                const SizedBox(width: AppSpacing.spaceSm),
+                Expanded(
+                  child: _CrowdConfirmButton(
+                    isLoading: isConfirmLoading,
+                    onConfirm: onConfirm,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: AppSpacing.space2xs),
+          Text(
+            'Laporan tambahan diverifikasi otomatis oleh tim posko & relawan.',
+            textAlign: TextAlign.center,
+            style: AppTypography.caption,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddReportButton extends StatelessWidget {
+  const _AddReportButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: AppSpacing.ctaButtonHeight,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        icon: const Icon(Icons.add_a_photo_outlined),
+        label: const Text('Tambah Laporan'),
+      ),
+    );
+  }
+}
+
+class _CrowdConfirmButton extends StatelessWidget {
+  const _CrowdConfirmButton({required this.isLoading, required this.onConfirm});
 
   final bool isLoading;
   final VoidCallback onConfirm;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.margin),
-      child: SizedBox(
-        width: double.infinity,
-        height: AppSpacing.ctaButtonHeight,
-        child: ElevatedButton.icon(
-          onPressed: isLoading ? null : onConfirm,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: AppColors.onPrimary,
-            shape: const RoundedRectangleBorder(borderRadius: AppRadius.roundedMd),
-          ),
-          icon: isLoading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.onPrimary,
-                  ),
-                )
-              : const Icon(Icons.thumb_up_alt_outlined),
-          label: Text(isLoading ? 'Memproses...' : 'Konfirmasi Kejadian'),
+    return SizedBox(
+      height: AppSpacing.ctaButtonHeight,
+      child: ElevatedButton.icon(
+        onPressed: isLoading ? null : onConfirm,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.statusResolution,
+          foregroundColor: AppColors.onPrimary,
         ),
+        icon: isLoading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.onPrimary,
+                ),
+              )
+            : const Icon(Icons.thumb_up_alt_outlined),
+        label: Text(isLoading ? 'Memproses...' : 'Konfirmasi Kejadian'),
       ),
     );
   }

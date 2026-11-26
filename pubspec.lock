@@ -421,14 +421,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "18.1.4"
-  google_fonts:
-    dependency: "direct main"
-    description:
-      name: google_fonts
-      sha256: fdbbfbbb1a62f376ab29fa9627561d389751fb984da0b630ce3326e272911c8a
-      url: "https://pub.dev"
-    source: hosted
-    version: "9.0.0"
   gsettings:
     dependency: transitive
     description:
@@ -566,7 +558,7 @@ packages:
     source: hosted
     version: "4.12.0"
   latlong2:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: latlong2
       sha256: "84b776b100a84a684a0aaa3fa4dc2c9b1931c658de533701ee4e09bfa991f8dc"

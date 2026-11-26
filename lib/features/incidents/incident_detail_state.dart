@@ -1,9 +1,9 @@
 import '../../core/models/api_models.dart';
 
-/// Type of timeline entry — from a report or a resolution submission.
+/// Jenis entri kronologi: berasal dari laporan warga atau resolusi petugas.
 enum TimelineEntryType { report, resolution }
 
-/// A unified timeline entry merging [ReportModel] and [ResolutionSubmissionModel].
+/// Entri kronologi gabungan dari [ReportModel] dan [ResolutionSubmissionModel].
 class TimelineEntry {
   final String id;
   final String description;
@@ -21,26 +21,27 @@ class TimelineEntry {
     this.authorName,
   });
 
-  factory TimelineEntry.fromReport(ReportModel r) => TimelineEntry(
-        id: r.id,
-        description: r.description,
-        createdAt: r.submittedAt,
-        media: r.media,
+  factory TimelineEntry.fromReport(ReportModel report) => TimelineEntry(
+        id: report.id,
+        description: report.description,
+        createdAt: report.submittedAt,
+        media: report.media,
         type: TimelineEntryType.report,
-        authorName: r.reporter?.name,
+        authorName: report.reporter?.name,
       );
 
-  factory TimelineEntry.fromResolution(ResolutionSubmissionModel r) => TimelineEntry(
-        id: r.id,
-        description: r.description,
-        createdAt: r.createdAt,
-        media: r.media,
+  factory TimelineEntry.fromResolution(ResolutionSubmissionModel resolution) =>
+      TimelineEntry(
+        id: resolution.id,
+        description: resolution.description,
+        createdAt: resolution.createdAt,
+        media: resolution.media,
         type: TimelineEntryType.resolution,
-        authorName: r.submitter?.name,
+        authorName: resolution.submitter?.name,
       );
 }
 
-/// Wraps a [MediaModel] together with its parent description for display.
+/// Satu media beserta deskripsi laporan/resolusi induknya (untuk judul gambar).
 class MediaItem {
   final MediaModel media;
   final String parentDescription;
@@ -51,12 +52,13 @@ class MediaItem {
   });
 }
 
-/// Immutable state for the Incident Detail screen.
+/// State immutable halaman detail insiden.
 class IncidentDetailData {
   final IncidentDetailModel incident;
   final List<TimelineEntry> timeline;
   final List<MediaItem> allMedia;
   final SafeZoneModel? nearestSafeZone;
+  final double? nearestSafeZoneDistanceKm;
   final bool isSortAscending;
   final int visibleMediaCount;
   final bool isConfirmLoading;
@@ -66,6 +68,7 @@ class IncidentDetailData {
     required this.timeline,
     required this.allMedia,
     this.nearestSafeZone,
+    this.nearestSafeZoneDistanceKm,
     this.isSortAscending = true,
     this.visibleMediaCount = 10,
     this.isConfirmLoading = false,
@@ -77,6 +80,8 @@ class IncidentDetailData {
     List<MediaItem>? allMedia,
     SafeZoneModel? nearestSafeZone,
     bool clearNearestSafeZone = false,
+    double? nearestSafeZoneDistanceKm,
+    bool clearDistance = false,
     bool? isSortAscending,
     int? visibleMediaCount,
     bool? isConfirmLoading,
@@ -85,7 +90,11 @@ class IncidentDetailData {
       incident: incident ?? this.incident,
       timeline: timeline ?? this.timeline,
       allMedia: allMedia ?? this.allMedia,
-      nearestSafeZone: clearNearestSafeZone ? null : (nearestSafeZone ?? this.nearestSafeZone),
+      nearestSafeZone:
+          clearNearestSafeZone ? null : (nearestSafeZone ?? this.nearestSafeZone),
+      nearestSafeZoneDistanceKm: clearDistance
+          ? null
+          : (nearestSafeZoneDistanceKm ?? this.nearestSafeZoneDistanceKm),
       isSortAscending: isSortAscending ?? this.isSortAscending,
       visibleMediaCount: visibleMediaCount ?? this.visibleMediaCount,
       isConfirmLoading: isConfirmLoading ?? this.isConfirmLoading,

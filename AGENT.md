@@ -45,7 +45,7 @@ Panduan kerja, standar arsitektur, tech stack, dan instruksi khusus pengembangan
 
 ### **Navigation & UI**
 * `go_router: ^18.1.4` — Declarative routing dengan auth guards.
-* `google_fonts: ^9.0.0` — Plus Jakarta Sans (Headlines) & Inter (Body/Labels).
+* **Font lokal** (tanpa `google_fonts`) — Plus Jakarta Sans (Headlines) & Inter (Body/Labels) dari folder `fonts/`, dideklarasikan di `pubspec.yaml`, dipakai lewat `AppTypography`.
 * `material_ui: ^1.11.1` — Komponen UI Material.
 
 ### **Device, Maps & Hardware**
