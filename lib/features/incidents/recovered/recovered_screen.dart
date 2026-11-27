@@ -7,11 +7,11 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/theme.dart';
+import '../../../core/widgets/form_app_bar.dart';
 import '../add_report/add_report_state.dart';
 import 'recovered_notifier.dart';
 import 'widgets/incident_summary_card.dart';
 import 'widgets/invalid_location_dialog.dart';
-import 'widgets/recovered_app_bar.dart';
 import 'widgets/recovery_description_section.dart';
 import 'widgets/recovery_evidence_section.dart';
 import 'widgets/recovery_reassurance_banner.dart';
@@ -30,7 +30,6 @@ class RecoveredScreen extends ConsumerStatefulWidget {
 
 class _RecoveredScreenState extends ConsumerState<RecoveredScreen> {
   final TextEditingController _descriptionController = TextEditingController();
-  final ImagePicker _imagePicker = ImagePicker();
   bool _hasShownInitialLocationCheck = false;
 
   @override
@@ -59,10 +58,9 @@ class _RecoveredScreenState extends ConsumerState<RecoveredScreen> {
 
     final status = result.status;
     if (status != null && status.isPermanentlyDenied) {
-      await ref.read(permissionServiceProvider).showPermanentlyDeniedDialog(
-            context,
-            permissionLabel: 'Lokasi',
-          );
+      await ref
+          .read(permissionServiceProvider)
+          .showPermanentlyDeniedDialog(context, permissionLabel: 'Lokasi');
       if (!mounted) return;
     }
 
@@ -101,66 +99,37 @@ class _RecoveredScreenState extends ConsumerState<RecoveredScreen> {
   }
 
   Future<void> _capturePhoto() async {
-    final permissionService = ref.read(permissionServiceProvider);
-    final status = await permissionService.requestCameraPermission();
-    if (!mounted) return;
-
-    if (status.isPermanentlyDenied) {
-      await permissionService.showPermanentlyDeniedDialog(
-        context,
-        permissionLabel: 'Kamera',
-      );
-      return;
-    }
-    if (!status.isGranted) {
-      _showSnackBar('Izin kamera diperlukan untuk mengambil foto bukti.');
-      return;
-    }
-
-    final file = await _imagePicker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 85,
-    );
-    if (file != null && mounted) {
-      ref.read(recoveredProvider(widget.incidentId).notifier).addMedia([file]);
-    }
+    final file = await ref
+        .read(permissionServiceProvider)
+        .pickImageWithPermission(ImageSource.camera, context: context);
+    if (file == null || !mounted) return;
+    ref.read(recoveredProvider(widget.incidentId).notifier).addMedia([file]);
   }
 
   Future<void> _pickFromGallery() async {
-    final permissionService = ref.read(permissionServiceProvider);
-    final status = await permissionService.requestGalleryPermission();
-    if (!mounted) return;
-
-    if (status.isPermanentlyDenied) {
-      await permissionService.showPermanentlyDeniedDialog(
-        context,
-        permissionLabel: 'Galeri',
-      );
-      return;
-    }
-    if (!status.isGranted && !status.isLimited) {
-      _showSnackBar('Izin galeri diperlukan untuk memilih foto bukti.');
-      return;
-    }
-
     final currentCount =
-        ref.read(recoveredProvider(widget.incidentId)).value?.mediaFiles.length ??
-            0;
+        ref
+            .read(recoveredProvider(widget.incidentId))
+            .value
+            ?.mediaFiles
+            .length ??
+        0;
     if (currentCount >= kMaxReportMediaCount) {
       _showSnackBar('Maksimal $kMaxReportMediaCount foto bukti.');
       return;
     }
 
-    final files = await _imagePicker.pickMultiImage(imageQuality: 85);
-    if (files.isNotEmpty && mounted) {
-      ref.read(recoveredProvider(widget.incidentId).notifier).addMedia(files);
-    }
+    final files = await ref
+        .read(permissionServiceProvider)
+        .pickMultiImagesWithPermission(context: context);
+    if (files.isEmpty || !mounted) return;
+    ref.read(recoveredProvider(widget.incidentId).notifier).addMedia(files);
   }
 
-  void _onQuickTextTap(String text) {
+  void _onQuickTextToggle(String text) {
     final nextText = ref
         .read(recoveredProvider(widget.incidentId).notifier)
-        .appendQuickText(text);
+        .toggleQuickText(text);
     if (nextText != null && _descriptionController.text != nextText) {
       _descriptionController.value = TextEditingValue(
         text: nextText,
@@ -170,8 +139,9 @@ class _RecoveredScreenState extends ConsumerState<RecoveredScreen> {
   }
 
   Future<void> _submit() async {
-    final success =
-        await ref.read(recoveredProvider(widget.incidentId).notifier).submit();
+    final success = await ref
+        .read(recoveredProvider(widget.incidentId).notifier)
+        .submit();
     if (!mounted) return;
 
     if (success) {
@@ -181,8 +151,10 @@ class _RecoveredScreenState extends ConsumerState<RecoveredScreen> {
       );
       context.pop();
     } else {
-      final errorMsg =
-          ref.read(recoveredProvider(widget.incidentId)).value?.errorMessage;
+      final errorMsg = ref
+          .read(recoveredProvider(widget.incidentId))
+          .value
+          ?.errorMessage;
       if (errorMsg != null && errorMsg.isNotEmpty) {
         _showSnackBar(errorMsg, backgroundColor: AppColors.error);
       }
@@ -201,7 +173,11 @@ class _RecoveredScreenState extends ConsumerState<RecoveredScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.surfaceCanvas,
-      appBar: const RecoveredAppBar(),
+      appBar: const FormAppBar(
+        title: 'Lapor Kondisi Pulih',
+        subtitle: 'Pantaura Tanggap Bencana',
+        subtitleColor: AppColors.secondary,
+      ),
       body: recoveredAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.primary),
@@ -243,7 +219,7 @@ class _RecoveredScreenState extends ConsumerState<RecoveredScreen> {
                       onChanged: (value) => ref
                           .read(recoveredProvider(widget.incidentId).notifier)
                           .updateDescription(value),
-                      onQuickTextTap: _onQuickTextTap,
+                      onQuickTextToggle: _onQuickTextToggle,
                     ),
                     const SizedBox(height: AppSpacing.spaceMd),
                     TruthDeclarationCard(
@@ -269,10 +245,7 @@ class _RecoveredScreenState extends ConsumerState<RecoveredScreen> {
 }
 
 class _RecoveredErrorBody extends StatelessWidget {
-  const _RecoveredErrorBody({
-    required this.message,
-    required this.onRetry,
-  });
+  const _RecoveredErrorBody({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;

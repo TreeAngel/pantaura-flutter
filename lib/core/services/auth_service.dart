@@ -1,6 +1,6 @@
+import '../models/api_models.dart';
 import '../network/api_client.dart';
 import '../network/api_config.dart';
-import '../models/api_models.dart';
 
 class AuthService {
   final ApiClient _client;

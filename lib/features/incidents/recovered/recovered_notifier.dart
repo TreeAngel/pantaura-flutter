@@ -18,13 +18,15 @@ class RecoveredNotifier extends AsyncNotifier<RecoveredData> {
 
   @override
   Future<RecoveredData> build() async {
-    final detailData = await ref.read(incidentDetailProvider(incidentId).future);
+    final detailData = await ref.read(
+      incidentDetailProvider(incidentId).future,
+    );
     return RecoveredData(incident: detailData.incident);
   }
 
   /// Meminta izin lokasi, mengambil posisi GPS terkini, dan memvalidasi jarak ≤ 500 m.
   Future<({PermissionStatus? status, bool isValid, double? distanceMeters})>
-      refreshLocation() async {
+  refreshLocation() async {
     final current = state.value;
     if (current == null || current.isRefreshingLocation) {
       return (
@@ -47,8 +49,7 @@ class RecoveredNotifier extends AsyncNotifier<RecoveredData> {
           current.copyWith(
             isRefreshingLocation: false,
             isLocationValid: false,
-            errorMessage:
-                'Izin lokasi diperlukan untuk memverifikasi posisi di area insiden.',
+            errorMessage: 'Izin lokasi diperlukan untuk memverifikasi posisi di area insiden.',
           ),
         );
         return (
@@ -88,8 +89,7 @@ class RecoveredNotifier extends AsyncNotifier<RecoveredData> {
         current.copyWith(
           isRefreshingLocation: false,
           isLocationValid: false,
-          errorMessage:
-              'Gagal mengambil koordinat GPS. Pastikan GPS aktif dan coba lagi.',
+          errorMessage: 'Gagal mengambil koordinat GPS. Pastikan GPS aktif dan coba lagi.',
         ),
       );
       return (
@@ -136,23 +136,16 @@ class RecoveredNotifier extends AsyncNotifier<RecoveredData> {
     );
   }
 
-  /// Menyisipkan teks cepat kondisi pulih bila belum ada, maks 500 karakter.
-  String? appendQuickText(String quickText) {
+  /// Menambahkan [quickText] bila belum ada, atau menghapusnya bila sudah ada.
+  String? toggleQuickText(String quickText) {
     final current = state.value;
     if (current == null) return null;
 
-    final existing = current.description;
-    if (existing.toLowerCase().contains(quickText.toLowerCase())) {
-      return existing;
-    }
-
-    final separator = existing.trim().isEmpty
-        ? ''
-        : (existing.trimRight().endsWith('.') ? ' ' : '. ');
-    final candidate = '$existing$separator$quickText.';
-    final nextText = candidate.length > kMaxReportDescriptionLength
-        ? candidate.substring(0, kMaxReportDescriptionLength)
-        : candidate;
+    final nextText = toggleQuickTextInDescription(
+      current.description,
+      quickText,
+    );
+    if (nextText == current.description) return nextText;
 
     state = AsyncData(
       current.copyWith(description: nextText, clearErrorMessage: true),
@@ -224,7 +217,9 @@ class RecoveredNotifier extends AsyncNotifier<RecoveredData> {
         ),
       );
 
-      await ref.read(incidentServiceProvider).submitResolution(
+      await ref
+          .read(incidentServiceProvider)
+          .submitResolution(
             incidentId: incidentId,
             description: cleanDescription,
             mediaFiles: multipartFiles,
@@ -241,8 +236,7 @@ class RecoveredNotifier extends AsyncNotifier<RecoveredData> {
       state = AsyncData(
         current.copyWith(
           isSubmitting: false,
-          errorMessage:
-              'Gagal mengirim pengajuan status pulih. Periksa koneksi internet Anda.',
+          errorMessage: 'Gagal mengirim pengajuan status pulih. Periksa koneksi internet Anda.',
         ),
       );
       return false;
@@ -252,5 +246,5 @@ class RecoveredNotifier extends AsyncNotifier<RecoveredData> {
 
 final recoveredProvider =
     AsyncNotifierProvider.family<RecoveredNotifier, RecoveredData, String>(
-  RecoveredNotifier.new,
-);
+      RecoveredNotifier.new,
+    );

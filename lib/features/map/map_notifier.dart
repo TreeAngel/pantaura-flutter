@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../core/models/api_models.dart';
 import '../../core/providers.dart';
 import 'map_state.dart';
 
@@ -12,8 +13,14 @@ class MapNotifier extends AsyncNotifier<MapData> {
 
   @override
   Future<MapData> build() async {
-    final incidents = await ref.read(incidentServiceProvider).getIncidentsMap();
-    return MapData(incidents: incidents);
+    final (incidents, safeZones) = await (
+      ref.read(incidentServiceProvider).getIncidentsMap(),
+      ref
+          .read(safeZoneServiceProvider)
+          .getSafeZones()
+          .catchError((_) => <SafeZoneModel>[]),
+    ).wait;
+    return MapData(incidents: incidents, safeZones: safeZones);
   }
 
   /// Pin ditap → simpan id → ambil detail terbaru → bottom sheet reload.
@@ -50,14 +57,33 @@ class MapNotifier extends AsyncNotifier<MapData> {
     }
   }
 
+  static bool _isSamePoint(GeoPoint a, GeoPoint b) =>
+      (a.latitude - b.latitude).abs() < _pointTolerance &&
+      (a.longitude - b.longitude).abs() < _pointTolerance;
+
   /// `onGeoPointClicked` hanya mengembalikan koordinat, bukan id marker.
+  /// Titik posko sengaja diabaikan agar tidak membuka sheet insiden.
   String? findIncidentIdByPoint(GeoPoint point) {
-    final incidents = state.value?.incidents ?? [];
-    for (final incident in incidents) {
-      if ((incident.latitude - point.latitude).abs() < _pointTolerance &&
-          (incident.longitude - point.longitude).abs() < _pointTolerance) {
-        return incident.id;
+    final current = state.value;
+    if (current == null) return null;
+    final safeZonePoints = current.safeZones.map(current.pointOfSafeZone).toList();
+    for (final incident in current.incidents) {
+      final incidentPoint = current.pointOf(incident);
+      if (!_isSamePoint(incidentPoint, point)) continue;
+      if (safeZonePoints.any((zone) => _isSamePoint(zone, incidentPoint))) {
+        continue;
       }
+      return incident.id;
+    }
+    return null;
+  }
+
+  /// Dipakai screen untuk snackbar ringkas nama + alamat posko.
+  SafeZoneModel? findSafeZoneByPoint(GeoPoint point) {
+    final current = state.value;
+    if (current == null) return null;
+    for (final zone in current.safeZones) {
+      if (_isSamePoint(current.pointOfSafeZone(zone), point)) return zone;
     }
     return null;
   }

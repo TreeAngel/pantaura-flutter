@@ -18,7 +18,7 @@ class HomeCategoryFilterBar extends StatelessWidget {
   IconData _iconForCategory(DisasterCategoryFilter category) {
     return switch (category) {
       DisasterCategoryFilter.all => Icons.apps_rounded,
-      DisasterCategoryFilter.flood => Icons.tsunami_rounded,
+      DisasterCategoryFilter.flood => Icons.flood_rounded,
       DisasterCategoryFilter.earthquake => Icons.public_rounded,
       DisasterCategoryFilter.landslide => Icons.landslide_rounded,
       DisasterCategoryFilter.fire => Icons.local_fire_department_rounded,

@@ -1,18 +1,21 @@
 import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import '../../core/providers.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/theme/theme.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
+class _SplashScreenState extends ConsumerState<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
@@ -55,11 +58,29 @@ class _SplashScreenState extends State<SplashScreen>
         Future.delayed(const Duration(milliseconds: 600), () {
           if (!mounted) return;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) context.go(AppRoutes.login);
+            _navigateBasedOnStoredToken();
           });
         });
       }
     });
+  }
+
+  /// Token tersimpan lebih dari 30 hari → hapus & ke login; jika tidak, ke home.
+  Future<void> _navigateBasedOnStoredToken() async {
+    final provider = ref.read(tokenProviderInstance);
+    final stored = await provider.readStoredToken();
+    final expired = stored == null ||
+        stored.token.isEmpty ||
+        DateTime.now().difference(stored.savedAt) > const Duration(days: 30);
+
+    if (!mounted) return;
+    if (expired) {
+      await provider.clearToken();
+      if (!mounted) return;
+      context.go(AppRoutes.login);
+      return;
+    }
+    context.go(AppRoutes.home);
   }
 
   @override

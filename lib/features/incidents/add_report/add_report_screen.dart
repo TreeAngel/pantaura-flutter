@@ -7,9 +7,9 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/theme.dart';
+import '../../../core/widgets/form_app_bar.dart';
 import 'add_report_notifier.dart';
 import 'add_report_state.dart';
-import 'widgets/add_report_app_bar.dart';
 import 'widgets/description_section.dart';
 import 'widgets/evidence_photo_section.dart';
 import 'widgets/incident_summary_card.dart';
@@ -28,7 +28,6 @@ class AddReportScreen extends ConsumerStatefulWidget {
 
 class _AddReportScreenState extends ConsumerState<AddReportScreen> {
   final TextEditingController _descriptionController = TextEditingController();
-  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -51,75 +50,45 @@ class _AddReportScreenState extends ConsumerState<AddReportScreen> {
         .refreshLocation();
     if (!mounted) return;
     if (status != null && status.isPermanentlyDenied) {
-      await ref.read(permissionServiceProvider).showPermanentlyDeniedDialog(
-            context,
-            permissionLabel: 'Lokasi',
-          );
+      await ref
+          .read(permissionServiceProvider)
+          .showPermanentlyDeniedDialog(context, permissionLabel: 'Lokasi');
     }
   }
 
   Future<void> _capturePhoto() async {
-    final permissionService = ref.read(permissionServiceProvider);
-    final status = await permissionService.requestCameraPermission();
-    if (!mounted) return;
-
-    if (status.isPermanentlyDenied) {
-      await permissionService.showPermanentlyDeniedDialog(
-        context,
-        permissionLabel: 'Kamera',
-      );
-      return;
-    }
-    if (!status.isGranted) {
-      _showSnackBar('Izin kamera diperlukan untuk mengambil foto.');
-      return;
-    }
-
-    final file = await _imagePicker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 85,
-    );
-    if (file != null && mounted) {
-      ref.read(addReportProvider(widget.incidentId).notifier).addMedia([file]);
-    }
+    final file = await ref
+        .read(permissionServiceProvider)
+        .pickImageWithPermission(ImageSource.camera, context: context);
+    if (file == null || !mounted) return;
+    ref.read(addReportProvider(widget.incidentId).notifier).addMedia([file]);
   }
 
   Future<void> _pickFromGallery() async {
-    final permissionService = ref.read(permissionServiceProvider);
-    final status = await permissionService.requestGalleryPermission();
-    if (!mounted) return;
-
-    if (status.isPermanentlyDenied) {
-      await permissionService.showPermanentlyDeniedDialog(
-        context,
-        permissionLabel: 'Galeri',
-      );
-      return;
-    }
-    if (!status.isGranted && !status.isLimited) {
-      _showSnackBar('Izin galeri diperlukan untuk memilih foto.');
-      return;
-    }
-
     final currentCount =
-        ref.read(addReportProvider(widget.incidentId)).value?.mediaFiles.length ??
-            0;
+        ref
+            .read(addReportProvider(widget.incidentId))
+            .value
+            ?.mediaFiles
+            .length ??
+        0;
     final remaining = kMaxReportMediaCount - currentCount;
     if (remaining <= 0) {
       _showSnackBar('Maksimal $kMaxReportMediaCount foto bukti.');
       return;
     }
 
-    final files = await _imagePicker.pickMultiImage(imageQuality: 85);
-    if (files.isNotEmpty && mounted) {
-      ref.read(addReportProvider(widget.incidentId).notifier).addMedia(files);
-    }
+    final files = await ref
+        .read(permissionServiceProvider)
+        .pickMultiImagesWithPermission(context: context);
+    if (files.isEmpty || !mounted) return;
+    ref.read(addReportProvider(widget.incidentId).notifier).addMedia(files);
   }
 
-  void _onQuickTextTap(String text) {
+  void _onQuickTextToggle(String text) {
     final nextText = ref
         .read(addReportProvider(widget.incidentId).notifier)
-        .appendQuickText(text);
+        .toggleQuickText(text);
     if (nextText != null && _descriptionController.text != nextText) {
       _descriptionController.value = TextEditingValue(
         text: nextText,
@@ -129,8 +98,9 @@ class _AddReportScreenState extends ConsumerState<AddReportScreen> {
   }
 
   Future<void> _submit() async {
-    final success =
-        await ref.read(addReportProvider(widget.incidentId).notifier).submit();
+    final success = await ref
+        .read(addReportProvider(widget.incidentId).notifier)
+        .submit();
     if (!mounted) return;
 
     if (success) {
@@ -140,8 +110,10 @@ class _AddReportScreenState extends ConsumerState<AddReportScreen> {
       );
       context.pop();
     } else {
-      final errorMsg =
-          ref.read(addReportProvider(widget.incidentId)).value?.errorMessage;
+      final errorMsg = ref
+          .read(addReportProvider(widget.incidentId))
+          .value
+          ?.errorMessage;
       if (errorMsg != null && errorMsg.isNotEmpty) {
         _showSnackBar(errorMsg, backgroundColor: AppColors.error);
       }
@@ -160,7 +132,13 @@ class _AddReportScreenState extends ConsumerState<AddReportScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.surfaceCanvas,
-      appBar: const AddReportAppBar(),
+      appBar: const FormAppBar(
+        title: 'Tambah Laporan Insiden',
+        titleStyle: AppTypography.headlineMd,
+        subtitle: 'Pantaura Darurat',
+        subtitleIcon: Icons.verified_user_rounded,
+        subtitleColor: AppColors.statusResolution,
+      ),
       body: addReportAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.primary),
@@ -209,16 +187,13 @@ class _AddReportScreenState extends ConsumerState<AddReportScreen> {
                       onChanged: (value) => ref
                           .read(addReportProvider(widget.incidentId).notifier)
                           .updateDescription(value),
-                      onQuickTextTap: _onQuickTextTap,
+                      onQuickTextToggle: _onQuickTextToggle,
                     ),
                   ],
                 ),
               ),
             ),
-            SubmitReportBar(
-              isSubmitting: data.isSubmitting,
-              onSubmit: _submit,
-            ),
+            SubmitReportBar(isSubmitting: data.isSubmitting, onSubmit: _submit),
           ],
         ),
       ),
@@ -227,10 +202,7 @@ class _AddReportScreenState extends ConsumerState<AddReportScreen> {
 }
 
 class _AddReportErrorBody extends StatelessWidget {
-  const _AddReportErrorBody({
-    required this.message,
-    required this.onRetry,
-  });
+  const _AddReportErrorBody({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;

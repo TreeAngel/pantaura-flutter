@@ -9,7 +9,7 @@ import 'services/watch_area_service.dart';
 
 // Token Provider
 final tokenProviderInstance = Provider<TokenProvider>((ref) {
-  return InMemoryTokenProvider();
+  return SecureTokenProvider();
 });
 
 // ApiClient Provider

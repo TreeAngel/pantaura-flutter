@@ -27,8 +27,8 @@ class LocationSection extends StatelessWidget {
   final VoidCallback onRefreshGps;
 
   IconData _disasterIcon(String type) => switch (type.toLowerCase()) {
-        'flood' => Icons.water_rounded,
-        'earthquake' => Icons.waves_rounded,
+        'flood' => Icons.flood_rounded,
+        'earthquake' => Icons.public_rounded,
         'landslide' => Icons.landslide_rounded,
         'fire' => Icons.local_fire_department_rounded,
         _ => Icons.warning_rounded,

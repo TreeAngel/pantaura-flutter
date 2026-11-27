@@ -14,6 +14,7 @@ class MapData {
 
   const MapData({
     this.incidents = const [],
+    this.safeZones = const [],
     this.selectedIncidentId,
     this.selectedDetail,
     this.isDetailLoading = false,
@@ -23,6 +24,9 @@ class MapData {
   });
 
   final List<IncidentSummaryModel> incidents;
+
+  /// Posko/titik aman — tidak ikut filter status insiden.
+  final List<SafeZoneModel> safeZones;
   final String? selectedIncidentId;
   final IncidentDetailModel? selectedDetail;
   final bool isDetailLoading;
@@ -34,6 +38,14 @@ class MapData {
         latitude: incident.latitude,
         longitude: incident.longitude,
       );
+
+  GeoPoint pointOfSafeZone(SafeZoneModel zone) => GeoPoint(
+        latitude: zone.latitude,
+        longitude: zone.longitude,
+      );
+
+  /// Id marker posko memakai prefix agar tidak bertabrakan dengan insiden.
+  String safeZoneMarkerId(SafeZoneModel zone) => 'safezone_${zone.id}';
 
   /// Filter status: null = Semua, 'pending' = menunggu verifikasi + sedang diproses.
   List<IncidentSummaryModel> get filteredIncidents {
@@ -75,6 +87,7 @@ class MapData {
 
   MapData copyWith({
     List<IncidentSummaryModel>? incidents,
+    List<SafeZoneModel>? safeZones,
     String? selectedIncidentId,
     bool clearSelection = false,
     IncidentDetailModel? selectedDetail,
@@ -88,6 +101,7 @@ class MapData {
   }) {
     return MapData(
       incidents: incidents ?? this.incidents,
+      safeZones: safeZones ?? this.safeZones,
       selectedIncidentId:
           clearSelection ? null : (selectedIncidentId ?? this.selectedIncidentId),
       selectedDetail: clearSelectedDetail

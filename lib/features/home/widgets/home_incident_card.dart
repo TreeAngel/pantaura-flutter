@@ -29,7 +29,7 @@ class HomeIncidentCard extends StatelessWidget {
       'flood' => Icons.flood_rounded,
       'earthquake' => Icons.public_rounded,
       'landslide' => Icons.landslide_rounded,
-      'fire' => Icons.whatshot_rounded,
+      'fire' => Icons.local_fire_department_rounded,
       _ => Icons.warning_amber_rounded,
     };
   }

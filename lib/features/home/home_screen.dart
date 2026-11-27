@@ -1,19 +1,23 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+
 import '../../core/network/api_exception.dart';
 import '../../core/providers.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/theme/theme.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/emergency_112_dialog.dart';
 import '../auth/auth_notifier.dart';
 import 'home_notifier.dart';
 import 'home_state.dart';
+import 'widgets/home_alert_sheet.dart';
 import 'widgets/home_category_filter.dart';
 import 'widgets/home_emergency_banner.dart';
 import 'widgets/home_header_section.dart';
 import 'widgets/home_incident_card.dart';
 import 'widgets/home_status_summary.dart';
+import 'widgets/watch_area_sheet.dart';
 
 /// Halaman Beranda Warga Pantaura sesuai desain Stitch & DESIGN.md.
 class HomeScreen extends ConsumerStatefulWidget {
@@ -59,126 +63,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: AppRadius.bottomSheet,
       ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.margin),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Pilih Lokasi Pantauan Aktif',
-                  style: AppTypography.headlineMd.copyWith(
-                    color: AppColors.textHeader,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Tampilkan insiden di sekitar area pantauan tersimpan atau seluruh wilayah.',
-                  style: AppTypography.bodySm,
-                ),
-                const SizedBox(height: AppSpacing.spaceMd),
-                _WatchAreaOptionTile(
-                  title: 'Semua Wilayah Pantauan',
-                  subtitle: 'Menampilkan seluruh laporan insiden publik terkini',
-                  isSelected: data.activeWatchArea == null,
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    ref.read(homeNotifierProvider.notifier).selectWatchArea(null);
-                  },
-                ),
-                for (final area in data.watchAreas) ...[
-                  const SizedBox(height: AppSpacing.spaceXs),
-                  _WatchAreaOptionTile(
-                    title: area.label,
-                    subtitle:
-                        'Radius ${(area.radiusMeters / 1000).toStringAsFixed(1)} km dari titik pantau',
-                    isSelected: data.activeWatchArea?.id == area.id,
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      ref
-                          .read(homeNotifierProvider.notifier)
-                          .selectWatchArea(area);
-                    },
-                  ),
-                ],
-                if (data.watchAreas.isEmpty) ...[
-                  const SizedBox(height: AppSpacing.spaceSm),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(AppSpacing.spaceSm),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerLow,
-                      borderRadius: AppRadius.roundedMd,
-                    ),
-                    child: Text(
-                      'Belum ada area pantauan pribadi. Anda dapat menambahkannya melalui halaman Profil.',
-                      style: AppTypography.caption,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (_) => WatchAreaSheet(
+        activeWatchAreaId: data.activeWatchArea?.id,
+        onAreaSelected: (area) =>
+            ref.read(homeNotifierProvider.notifier).selectWatchArea(area),
+      ),
     );
   }
 
-  Future<void> _showEmergency112Dialog() async {
-    await showDialog<void>(
+  Future<void> _showAlertsSheet() async {
+    await showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          shape: const RoundedRectangleBorder(
-            borderRadius: AppRadius.roundedLg,
-          ),
-          title: Row(
-            children: [
-              const Icon(Icons.call_rounded, color: AppColors.error),
-              const SizedBox(width: AppSpacing.spaceXs),
-              Text(
-                'Panggilan Darurat 112',
-                style: AppTypography.headlineSm.copyWith(
-                  color: AppColors.textHeader,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            '(Fitur belum terhubung dengan sistem 112 nyata dan hanya berupa tampilan)\nLayanan darurat nasional 112 aktif 24 jam dan bebas pulsa. Gunakan hanya untuk kondisi darurat yang mengancam keselamatan jiwa.',
-            style: AppTypography.bodyMd,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Tutup'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Menghubungi layanan darurat 112...'),
-                    backgroundColor: AppColors.error,
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: AppColors.onError,
-              ),
-              child: const Text('Hubungi 112'),
-            ),
-          ],
-        );
-      },
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: AppRadius.bottomSheet,
+      ),
+      builder: (_) => HomeAlertSheet(
+        onAlertSelected: (alert) {
+          final incidentId = alert.incidentId;
+          if (incidentId != null && incidentId.isNotEmpty && mounted) {
+            context.push(AppRoutes.incidentDetail(incidentId));
+          }
+        },
+      ),
     );
   }
+
+  Future<void> _showEmergency112Dialog() => showEmergency112Dialog(context);
 
   @override
   Widget build(BuildContext context) {
@@ -205,6 +116,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       backgroundColor: AppColors.surfaceCanvas,
       appBar: HomeTopBar(
         unreadAlertsCount: homeAsync.value?.unreadAlertsCount ?? 0,
+        onAlertsTap: _showAlertsSheet,
         onProfileTap: () => context.go(AppRoutes.profile),
       ),
       body: homeAsync.when(
@@ -368,73 +280,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 sliver: SliverToBoxAdapter(
                   child: SafeZoneReassuranceCard(safeZones: data.safeZones),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _WatchAreaOptionTile extends StatelessWidget {
-  const _WatchAreaOptionTile({
-    required this.title,
-    required this.subtitle,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String title;
-  final String subtitle;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: isSelected ? AppColors.surfaceTintIce : AppColors.surfaceCanvas,
-      borderRadius: AppRadius.roundedMd,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AppRadius.roundedMd,
-        child: Container(
-          constraints: const BoxConstraints(
-            minHeight: AppSpacing.minTouchTarget,
-          ),
-          padding: const EdgeInsets.all(AppSpacing.spaceSm),
-          decoration: BoxDecoration(
-            borderRadius: AppRadius.roundedMd,
-            border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.borderSubtle,
-              width: isSelected ? 2 : 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                isSelected
-                    ? Icons.radio_button_checked_rounded
-                    : Icons.radio_button_off_rounded,
-                color: isSelected
-                    ? AppColors.primary
-                    : AppColors.onSurfaceVariant,
-              ),
-              const SizedBox(width: AppSpacing.spaceSm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: AppTypography.labelMd.copyWith(
-                        color: AppColors.textHeader,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(subtitle, style: AppTypography.caption),
-                  ],
                 ),
               ),
             ],

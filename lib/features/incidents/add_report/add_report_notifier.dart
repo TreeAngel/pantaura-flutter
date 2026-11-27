@@ -17,7 +17,9 @@ class AddReportNotifier extends AsyncNotifier<AddReportData> {
 
   @override
   Future<AddReportData> build() async {
-    final detailData = await ref.read(incidentDetailProvider(incidentId).future);
+    final detailData = await ref.read(
+      incidentDetailProvider(incidentId).future,
+    );
     return AddReportData(incident: detailData.incident);
   }
 
@@ -40,7 +42,8 @@ class AddReportNotifier extends AsyncNotifier<AddReportData> {
           current.copyWith(
             isRefreshingLocation: false,
             isLocationValid: false,
-            errorMessage: 'Izin lokasi diperlukan untuk memverifikasi radius laporan.',
+            errorMessage:
+                'Izin lokasi diperlukan untuk memverifikasi radius laporan.',
           ),
         );
         return status;
@@ -73,7 +76,8 @@ class AddReportNotifier extends AsyncNotifier<AddReportData> {
       state = AsyncData(
         current.copyWith(
           isRefreshingLocation: false,
-          errorMessage: 'Gagal mengambil lokasi GPS. Pastikan GPS aktif dan coba lagi.',
+          errorMessage:
+              'Gagal mengambil lokasi GPS. Pastikan GPS aktif dan coba lagi.',
         ),
       );
       return null;
@@ -116,23 +120,16 @@ class AddReportNotifier extends AsyncNotifier<AddReportData> {
     );
   }
 
-  /// Menyisipkan teks cepat ke [description] bila belum ada, dibatasi 500 karakter.
-  String? appendQuickText(String quickText) {
+  /// Menambahkan [quickText] bila belum ada, atau menghapusnya bila sudah ada.
+  String? toggleQuickText(String quickText) {
     final current = state.value;
     if (current == null) return null;
 
-    final existing = current.description;
-    if (existing.toLowerCase().contains(quickText.toLowerCase())) {
-      return existing;
-    }
-
-    final separator = existing.trim().isEmpty
-        ? ''
-        : (existing.trimRight().endsWith('.') ? ' ' : '. ');
-    final candidate = '$existing$separator$quickText.';
-    final nextText = candidate.length > kMaxReportDescriptionLength
-        ? candidate.substring(0, kMaxReportDescriptionLength)
-        : candidate;
+    final nextText = toggleQuickTextInDescription(
+      current.description,
+      quickText,
+    );
+    if (nextText == current.description) return nextText;
 
     state = AsyncData(
       current.copyWith(description: nextText, clearErrorMessage: true),
@@ -186,7 +183,9 @@ class AddReportNotifier extends AsyncNotifier<AddReportData> {
         ),
       );
 
-      await ref.read(incidentServiceProvider).addIncidentReport(
+      await ref
+          .read(incidentServiceProvider)
+          .addIncidentReport(
             incidentId: incidentId,
             latitude: position.latitude,
             longitude: position.longitude,
@@ -205,7 +204,8 @@ class AddReportNotifier extends AsyncNotifier<AddReportData> {
       state = AsyncData(
         current.copyWith(
           isSubmitting: false,
-          errorMessage: 'Gagal mengirim laporan. Periksa koneksi internet Anda.',
+          errorMessage:
+              'Gagal mengirim laporan. Periksa koneksi internet Anda.',
         ),
       );
       return false;
@@ -215,5 +215,5 @@ class AddReportNotifier extends AsyncNotifier<AddReportData> {
 
 final addReportProvider =
     AsyncNotifierProvider.family<AddReportNotifier, AddReportData, String>(
-  AddReportNotifier.new,
-);
+      AddReportNotifier.new,
+    );

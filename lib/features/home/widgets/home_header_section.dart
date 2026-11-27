@@ -8,10 +8,12 @@ class HomeTopBar extends StatelessWidget implements PreferredSizeWidget {
   const HomeTopBar({
     super.key,
     required this.unreadAlertsCount,
+    required this.onAlertsTap,
     required this.onProfileTap,
   });
 
   final int unreadAlertsCount;
+  final VoidCallback onAlertsTap;
   final VoidCallback onProfileTap;
 
   @override
@@ -31,44 +33,105 @@ class HomeTopBar extends StatelessWidget implements PreferredSizeWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.margin),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryContainer,
-                        borderRadius: AppRadius.roundedMd,
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryContainer,
+                          borderRadius: AppRadius.roundedMd,
+                        ),
+                        child: SvgPicture.asset(
+                          'assets/images/pantaura-logo-svg.svg',
+                          fit: BoxFit.contain,
+                        ),
                       ),
-                      child: SvgPicture.asset(
-                        'assets/images/pantaura-logo-svg.svg',
-                        fit: BoxFit.contain,
+                      const SizedBox(width: AppSpacing.spaceXs),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Pantaura • Tanggap Sipil',
+                              style: AppTypography.caption.copyWith(
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'Beranda',
+                              style: AppTypography.headlineMd.copyWith(
+                                color: AppColors.textHeader,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.spaceXs),
+                Semantics(
+                  label: 'Lihat notifikasi area pantauan',
+                  button: true,
+                  child: InkWell(
+                    onTap: onAlertsTap,
+                    borderRadius: AppRadius.roundedFull,
+                    child: SizedBox(
+                      width: AppSpacing.minTouchTarget,
+                      height: AppSpacing.minTouchTarget,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Center(
+                            child: Icon(
+                              Icons.notifications_none_rounded,
+                              color: AppColors.textHeader,
+                              size: 24,
+                            ),
+                          ),
+                          if (unreadAlertsCount > 0)
+                            Positioned(
+                              top: 4,
+                              right: 2,
+                              child: Container(
+                                constraints: const BoxConstraints(
+                                  minWidth: 18,
+                                  minHeight: 18,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 3,
+                                ),
+                                decoration: const BoxDecoration(
+                                  color: AppColors.statusVerified,
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  unreadAlertsCount > 9
+                                      ? '9+'
+                                      : '$unreadAlertsCount',
+                                  style: const TextStyle(
+                                    color: AppColors.onError,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.spaceXs),
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Pantaura • Tanggap Sipil',
-                          style: AppTypography.caption.copyWith(
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Text(
-                          'Beranda',
-                          style: AppTypography.headlineMd.copyWith(
-                            color: AppColors.textHeader,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
                 InkWell(
                   onTap: onProfileTap,
@@ -94,23 +157,6 @@ class HomeTopBar extends StatelessWidget implements PreferredSizeWidget {
                           ),
                         ),
                       ),
-                      if (unreadAlertsCount > 0)
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: Container(
-                            width: 12,
-                            height: 12,
-                            decoration: BoxDecoration(
-                              color: AppColors.statusVerified,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.surfaceCard,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ),

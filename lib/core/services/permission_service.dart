@@ -1,3 +1,4 @@
+import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -90,9 +91,7 @@ class PermissionService {
   /// Meminta izin galeri (`Permission.photos` untuk Android 13+, fallback `storage`).
   Future<PermissionStatus> requestGalleryPermission() async {
     var status = await Permission.photos.status;
-    if (!status.isGranted &&
-        !status.isLimited &&
-        !status.isPermanentlyDenied) {
+    if (!status.isGranted && !status.isLimited && !status.isPermanentlyDenied) {
       status = await Permission.photos.request();
     }
 
@@ -110,6 +109,83 @@ class PermissionService {
       galleryGranted: status.isGranted || status.isLimited,
     );
     return status;
+  }
+
+  /// Mengambil satu gambar dari kamera/galeri setelah izin diperiksa.
+  ///
+  /// [context] dipakai untuk snackbar/dialog penjelasan; bila null, penolakan
+  /// izin hanya mengembalikan `null` tanpa UI. `isLimited` dianggap diizinkan.
+  Future<XFile?> pickImageWithPermission(
+    ImageSource source, {
+    BuildContext? context,
+    int imageQuality = 85,
+  }) async {
+    final allowed = await _ensureMediaPermission(source, context: context);
+    if (!allowed) return null;
+
+    try {
+      return await ImagePicker().pickImage(
+        source: source,
+        imageQuality: imageQuality,
+      );
+    } catch (_) {
+      // Picker dibatalkan pengguna atau kamera tidak tersedia.
+      return null;
+    }
+  }
+
+  /// Mengambil beberapa gambar dari galeri setelah izin galeri diperiksa.
+  Future<List<XFile>> pickMultiImagesWithPermission({
+    BuildContext? context,
+    int imageQuality = 85,
+  }) async {
+    final allowed = await _ensureMediaPermission(
+      ImageSource.gallery,
+      context: context,
+    );
+    if (!allowed) return const <XFile>[];
+
+    try {
+      return await ImagePicker().pickMultiImage(imageQuality: imageQuality);
+    } catch (_) {
+      return const <XFile>[];
+    }
+  }
+
+  /// Memeriksa izin media dan menampilkan pesan penolakan bila perlu.
+  Future<bool> _ensureMediaPermission(
+    ImageSource source, {
+    BuildContext? context,
+  }) async {
+    final isCamera = source == ImageSource.camera;
+    final label = isCamera ? 'Kamera' : 'Galeri';
+    final status = isCamera
+        ? await requestCameraPermission()
+        : await requestGalleryPermission();
+
+    if (status.isPermanentlyDenied) {
+      if (context != null && context.mounted) {
+        await showPermanentlyDeniedDialog(context, permissionLabel: label);
+      }
+      return false;
+    }
+
+    if (!status.isGranted && !status.isLimited) {
+      if (context != null && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isCamera
+                  ? 'Izin kamera diperlukan untuk mengambil foto bukti.'
+                  : 'Izin galeri diperlukan untuk memilih foto bukti.',
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+
+    return true;
   }
 
   /// Menampilkan dialog penjelasan ketika izin ditolak permanen.

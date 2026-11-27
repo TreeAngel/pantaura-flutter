@@ -1,15 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/register_screen.dart';
+import '../../features/history/history_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/incidents/add_report/add_report_screen.dart';
 import '../../features/incidents/detail/incident_detail_screen.dart';
 import '../../features/incidents/recovered/recovered_screen.dart';
 import '../../features/map/map_screen.dart';
+import '../../features/profile/profile_screen.dart';
+import '../../features/reports/create_report_screen.dart';
 import '../../features/splash/splash_screen.dart';
-import '../theme/theme.dart';
 import '../widgets/pantaura_bottom_nav.dart';
 import 'app_routes.dart';
 
@@ -54,9 +57,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.history,
-                builder: (context, state) => const _PlaceholderTabScreen(
-                  title: 'Riwayat Laporan',
-                ),
+                builder: (context, state) => const HistoryScreen(),
               ),
             ],
           ),
@@ -64,9 +65,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.profile,
-                builder: (context, state) => const _PlaceholderTabScreen(
-                  title: 'Profil Warga',
-                ),
+                builder: (context, state) => const ProfileScreen(),
               ),
             ],
           ),
@@ -74,9 +73,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.createReport,
-        builder: (context, state) => const _PlaceholderDetailScreen(
-          title: 'Buat Laporan Bencana',
-        ),
+        builder: (context, state) => const CreateReportScreen(),
       ),
       GoRoute(
         path: AppRoutes.incidentDetailPath,
@@ -122,69 +119,6 @@ class _ScaffoldWithBottomNav extends StatelessWidget {
             initialLocation: tappedIndex == navigationShell.currentIndex,
           );
         },
-      ),
-    );
-  }
-}
-
-class _PlaceholderTabScreen extends StatelessWidget {
-  const _PlaceholderTabScreen({
-    required this.title,
-  });
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surfaceCanvas,
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.margin),
-          child: Text(
-            'Halaman $title sedang dalam pengembangan.',
-            style: AppTypography.bodyLg,
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PlaceholderDetailScreen extends StatelessWidget {
-  const _PlaceholderDetailScreen({
-    required this.title,
-    this.subtitle,
-  });
-
-  final String title;
-  final String? subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surfaceCanvas,
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.margin),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Halaman $title sedang dalam pengembangan.',
-                style: AppTypography.bodyLg,
-                textAlign: TextAlign.center,
-              ),
-              if (subtitle != null) ...[
-                const SizedBox(height: AppSpacing.spaceXs),
-                Text(subtitle!, style: AppTypography.caption),
-              ],
-            ],
-          ),
-        ),
       ),
     );
   }

@@ -11,6 +11,7 @@ import 'widgets/map_controls.dart';
 import 'widgets/map_filter_chips.dart';
 import 'widgets/map_header.dart';
 import 'widgets/map_search_bar.dart';
+import 'widgets/safe_zone_pin.dart';
 import 'widgets/user_location_pin.dart';
 
 /// Peta bencana interaktif: tap pin → reload detail → bottom sheet.
@@ -28,12 +29,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   bool _mapReady = false;
   final List<GeoPoint> _markerPoints = <GeoPoint>[];
-  int _markerGeneration = 0;
+  Future<void> _pendingSync = Future.value();
 
-  /// Marker dibuat dinamis agar filter/select tidak me-reset kamera peta.
-  Future<void> _syncMarkers(MapData data) async {
+  /// Sinkronisasi di-antre agar filter cepat tidak menumpuk/duplikat marker.
+  void _syncMarkers(MapData data) {
+    _pendingSync = _pendingSync.then((_) => _syncMarkersNow(data));
+  }
+
+  Future<void> _syncMarkersNow(MapData data) async {
     if (!_mapReady) return;
-    final generation = ++_markerGeneration;
     final previous = List<GeoPoint>.from(_markerPoints);
     _markerPoints.clear();
 
@@ -44,27 +48,31 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         // Marker mungkin belum terpasang pada platform native.
       }
     }
-    if (generation != _markerGeneration) return;
+
+    // Posko dipasang lebih dulu agar menang bila koordinatnya beririsan.
+    for (final zone in data.safeZones) {
+      await _addMarkerOnce(
+        data.pointOfSafeZone(zone),
+        MarkerIcon(
+          key: ValueKey(data.safeZoneMarkerId(zone)),
+          iconWidget: SafeZonePin(type: zone.type),
+        ),
+      );
+    }
 
     for (final incident in data.filteredIncidents) {
-      final point = data.pointOf(incident);
-      try {
-        await _controller.addMarker(
-          point,
-          markerIcon: MarkerIcon(
-            iconWidget: IncidentPin(
-              disasterType: incident.disasterType,
-              status: incident.status,
-              reportsCount: incident.reportsCount,
-              isSelected: data.selectedIncidentId == incident.id,
-            ),
+      await _addMarkerOnce(
+        data.pointOf(incident),
+        MarkerIcon(
+          key: ValueKey('incident_${incident.id}'),
+          iconWidget: IncidentPin(
+            disasterType: incident.disasterType,
+            status: incident.status,
+            reportsCount: incident.reportsCount,
+            isSelected: data.selectedIncidentId == incident.id,
           ),
-        );
-        _markerPoints.add(point);
-      } catch (_) {
-        // Lanjutkan ke marker berikutnya bila satu gagal dipasang.
-      }
-      if (generation != _markerGeneration) return;
+        ),
+      );
     }
 
     final position = data.userPosition;
@@ -74,21 +82,38 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             longitude: position.longitude,
           )
         : MapData.demoCenter;
+    await _addMarkerOnce(
+      userPoint,
+      MarkerIcon(
+        key: const ValueKey('user_location'),
+        iconWidget: UserLocationPin(isDemo: position == null),
+      ),
+    );
+  }
+
+  Future<void> _addMarkerOnce(GeoPoint point, MarkerIcon icon) async {
+    if (_markerPoints.contains(point)) return;
     try {
-      await _controller.addMarker(
-        userPoint,
-        markerIcon: MarkerIcon(
-          iconWidget: UserLocationPin(isDemo: position == null),
-        ),
-      );
-      _markerPoints.add(userPoint);
+      await _controller.addMarker(point, markerIcon: icon);
+      _markerPoints.add(point);
     } catch (_) {
-      // Abaikan kegagalan marker pengguna.
+      // Lanjutkan ke marker berikutnya bila satu gagal dipasang.
     }
   }
 
   Future<void> _onPinClicked(GeoPoint point) async {
     final notifier = ref.read(mapProvider.notifier);
+    final zone = notifier.findSafeZoneByPoint(point);
+    if (zone != null) {
+      final address = zone.address?.trim() ?? '';
+      final message = address.isEmpty ? zone.name : '${zone.name} • $address';
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
+      );
+      return;
+    }
     final incidentId = notifier.findIncidentIdByPoint(point);
     if (incidentId == null) return;
     await notifier.selectIncident(incidentId);
@@ -127,10 +152,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             Positioned.fill(
               child: OSMFlutter(
                 controller: _controller,
-                osmOption: OSMOption(
+                osmOption: const OSMOption(
                   showZoomController: false,
                   enableRotationByGesture: false,
-                  zoomOption: const ZoomOption(
+                  zoomOption: ZoomOption(
                     initZoom: MapData.demoZoom,
                     minZoomLevel: 4,
                     maxZoomLevel: 19,

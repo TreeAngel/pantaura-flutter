@@ -6,6 +6,7 @@ import '../../../core/models/api_models.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/theme.dart';
+import '../../../core/widgets/emergency_112_dialog.dart';
 import '../../auth/auth_notifier.dart';
 import 'incident_detail_notifier.dart';
 import 'incident_detail_state.dart';
@@ -31,61 +32,6 @@ class IncidentDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _IncidentDetailScreenState extends ConsumerState<IncidentDetailScreen> {
-  /// Dialog darurat 112 — identik dengan home_screen.dart.
-  Future<void> _showEmergency112Dialog() async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          shape: const RoundedRectangleBorder(
-            borderRadius: AppRadius.roundedLg,
-          ),
-          title: Row(
-            children: [
-              const Icon(Icons.call_rounded, color: AppColors.error),
-              const SizedBox(width: AppSpacing.spaceXs),
-              Text(
-                'Panggilan Darurat 112',
-                style: AppTypography.headlineSm.copyWith(
-                  color: AppColors.textHeader,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            '(Fitur belum terhubung dengan sistem 112 nyata dan hanya berupa tampilan)\n'
-            'Layanan darurat nasional 112 aktif 24 jam dan bebas pulsa. '
-            'Gunakan hanya untuk kondisi darurat yang mengancam keselamatan jiwa.',
-            style: AppTypography.bodyMd,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Tutup'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Menghubungi layanan darurat 112...'),
-                    backgroundColor: AppColors.error,
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: AppColors.onError,
-              ),
-              child: const Text('Hubungi 112'),
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   /// Buka halaman peta dengan mengoper koordinat insiden lewat query params.
   void _openMap(IncidentDetailModel incident) {
@@ -98,6 +44,8 @@ class _IncidentDetailScreenState extends ConsumerState<IncidentDetailScreen> {
     ).toString();
     context.go(location);
   }
+  
+  Future<void> _showEmergency112Dialog() => showEmergency112Dialog(context);
 
   @override
   Widget build(BuildContext context) {

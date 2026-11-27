@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/api_models.dart';
 import '../../core/providers.dart';
@@ -88,6 +90,33 @@ class HomeNotifier extends AsyncNotifier<HomeData> {
       lastPage: paginatedIncidents.lastPage,
       lastUpdated: DateTime.now(),
     );
+  }
+
+  /// Sinkronkan area pantauan & jumlah alert yang belum dibaca dari
+  /// `watchAreaNotifierProvider` tanpa memuat ulang seluruh Beranda.
+  void syncWatchAreaData({
+    required List<WatchAreaModel> watchAreas,
+    required int unreadAlertsCount,
+  }) {
+    final current = state.value;
+    if (current == null) return;
+
+    final active = current.activeWatchArea;
+    final activeStillExists =
+        active == null || watchAreas.any((area) => area.id == active.id);
+
+    state = AsyncData(
+      current.copyWith(
+        watchAreas: watchAreas,
+        unreadAlertsCount: unreadAlertsCount,
+        clearActiveWatchArea: !activeStillExists,
+      ),
+    );
+
+    // Area aktif dihapus → kembalikan daftar insiden ke semua wilayah.
+    if (!activeStillExists) {
+      unawaited(selectWatchArea(null));
+    }
   }
 
   /// Muat ulang seluruh data Beranda.

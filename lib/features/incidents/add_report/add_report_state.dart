@@ -51,6 +51,44 @@ List<String> getQuickTextsForDisaster(String disasterType) {
       const [];
 }
 
+/// Menambahkan [quickText] ke [description], atau menghapusnya bila sudah ada.
+///
+/// Digunakan bersama oleh ketiga form (create report, tambah laporan, pulih).
+/// Hasil sel dibatasi [kMaxReportDescriptionLength] karakter dan spasi/tanda
+/// baca yang menggantung setelah penghapusan dibersihkan.
+String toggleQuickTextInDescription(String description, String quickText) {
+  if (quickText.trim().isEmpty) return description;
+  final needle = quickText.toLowerCase();
+  var result = description.trim();
+
+  if (result.toLowerCase().contains(needle)) {
+    while (result.toLowerCase().contains(needle)) {
+      final start = result.toLowerCase().indexOf(needle);
+      final end = start + quickText.length;
+      final before = result.substring(0, start).trimRight();
+      final after = result.substring(end).trimLeft();
+
+      final cleanBefore = before.replaceFirst(RegExp(r'[.,;\s]+$'), '');
+      final cleanAfter = after.replaceFirst(RegExp(r'^[.,;\s]+'), '');
+
+      if (cleanBefore.isEmpty) {
+        result = cleanAfter;
+      } else if (cleanAfter.isEmpty) {
+        result = cleanBefore;
+      } else {
+        result = '$cleanBefore. $cleanAfter';
+      }
+    }
+    return result.replaceAll(RegExp(r'\s{2,}'), ' ').trim();
+  }
+
+  final separator = result.isEmpty ? '' : (result.endsWith('.') ? ' ' : '. ');
+  final candidate = '$result$separator$quickText.';
+  return candidate.length > kMaxReportDescriptionLength
+      ? candidate.substring(0, kMaxReportDescriptionLength)
+      : candidate;
+}
+
 /// State immutable untuk halaman Tambah Laporan Insiden.
 class AddReportData {
   const AddReportData({
@@ -96,8 +134,9 @@ class AddReportData {
       mediaFiles: mediaFiles ?? this.mediaFiles,
       description: description ?? this.description,
       isSubmitting: isSubmitting ?? this.isSubmitting,
-      errorMessage:
-          clearErrorMessage ? null : (errorMessage ?? this.errorMessage),
+      errorMessage: clearErrorMessage
+          ? null
+          : (errorMessage ?? this.errorMessage),
     );
   }
 }
