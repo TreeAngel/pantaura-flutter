@@ -1,4 +1,4 @@
-package com.paradisus.animalium.pantaura
+package com.paradisus_animalium.pantaura
 
 import io.flutter.embedding.android.FlutterActivity
 

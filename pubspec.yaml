@@ -10,14 +10,15 @@ dependencies:
   dio: ^5.11.1
   flutter:
     sdk: flutter
-  flutter_map: ^8.3.2
+  flutter_image_compress_lite: ^3.0.1
+  flutter_osm_plugin: ^4.1.0
   flutter_riverpod: ^3.5.0
   flutter_svg: ^2.5.0
   geolocator: ^14.1.2
   go_router: ^18.1.4
   image_picker: ^1.2.4
-  latlong2: ^0.10.1
   material_ui: ^1.11.1
+  permission_handler: ^13.0.2
   riverpod_lint: ^3.2.0
 
 dev_dependencies:

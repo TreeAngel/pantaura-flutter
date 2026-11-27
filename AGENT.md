@@ -47,11 +47,13 @@ Panduan kerja, standar arsitektur, tech stack, dan instruksi khusus pengembangan
 * `go_router: ^18.1.4` — Declarative routing dengan auth guards.
 * **Font lokal** (tanpa `google_fonts`) — Plus Jakarta Sans (Headlines) & Inter (Body/Labels) dari folder `fonts/`, dideklarasikan di `pubspec.yaml`, dipakai lewat `AppTypography`.
 * `material_ui: ^1.11.1` — Komponen UI Material.
+* `flutter_svg: ^2.5.0` — Rendering aset ikon & ilustrasi SVG.
 
 ### **Device, Maps & Hardware**
-* `flutter_map: ^8.3.2` — Visualisasi peta interaktif insiden bencana dan titik aman.
+* `flutter_osm_plugin: ^4.1.0` — Visualisasi peta OpenStreetMap native untuk preview & peta interaktif.
 * `geolocator: ^14.1.2` — Deteksi koordinat GPS pengguna untuk laporan darurat & geofencing.
 * `image_picker: ^1.2.4` — Pengambilan foto & video bukti laporan insiden / resolusi bencana.
+* `flutter_image_compress_lite: ^3.0.1` — Kompresi gambar sebelum upload laporan/resolusi.
 
 ---
 
@@ -98,3 +100,28 @@ lib/
 5. **Aksesibilitas (WCAG AAA)**:
    - Target sentuh minimal 48dp (tombol utama 54-56dp ramah lansia).
    - Kontras warna teks dan latar belakang harus memenuhi rasio kontras tinggi sesuai panduan desain.
+6. **Media Pengambilan Foto/Video**:
+   - Gunakan `image_picker` untuk mengambil foto/video dan untuk memilih media dari galeri.
+   - Gunakan `flutter_image_compress_lite` untuk kompresi gambar sebelum upload.
+   - Saat pengambilan media menggunakan dengan camera, pastikan untuk menggunakan resolusi yang optimal untuk upload.
+   - File gambar sementara disimpan dicache sampai laporan media diupload/keluar dari screen terkait, setelah itu hapus file cache tersebut.
+   - Handling MainActivity destruction (`image_picker`)
+When under high memory pressure the Android system may kill the MainActivity of the application using the image_picker. On Android the image_picker makes use of the default Intent.ACTION_GET_CONTENT or MediaStore.ACTION_IMAGE_CAPTURE intents. This means that while the intent is executing the source application is moved to the background and becomes eligible for cleanup when the system is low on memory. When the intent finishes executing, Android will restart the application. Since the data is never returned to the original call use the ImagePicker.retrieveLostData() method to retrieve the lost data. For example:
+
+```python
+Future<void> getLostData() async {
+  final picker = ImagePicker();
+  final LostDataResponse response = await picker.retrieveLostData();
+  if (response.isEmpty) {
+    return;
+  }
+  final List<XFile>? files = response.files;
+  if (files != null) {
+    _handleLostFiles(files);
+  } else {
+    _handleError(response.exception);
+  }
+}
+```
+
+This check should always be run at startup in order to detect and handle this case.
