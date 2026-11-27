@@ -1,13 +1,9 @@
 import 'package:flutter_osm_plugin/flutter_osm_plugin.dart';
 import 'package:image_picker/image_picker.dart';
 
-/// Posisi awal untuk keperluan debug/demo.
-final GeoPoint kCreateReportDemoPin = GeoPoint(
-  latitude: -6.19099,
-  longitude: 106.84264,
-);
-
 /// State immutable halaman Buat Laporan Bencana.
+/// Posisi awal tidak memakai titik demo — diisi dari GPS akurasi tinggi.
+
 class CreateReportData {
   const CreateReportData({
     this.pin,
@@ -19,9 +15,7 @@ class CreateReportData {
     this.isSubmitting = false,
   });
 
-  factory CreateReportData.initial() => CreateReportData(
-        pin: kCreateReportDemoPin,
-      );
+  factory CreateReportData.initial() => const CreateReportData();
 
   final String disasterType;
   final GeoPoint? pin;

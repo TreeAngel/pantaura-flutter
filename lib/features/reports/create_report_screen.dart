@@ -26,6 +26,17 @@ class _CreateReportScreenState extends ConsumerState<CreateReportScreen> {
   final TextEditingController _descriptionController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // Tanpa titik demo: ambil lokasi user dengan akurasi tinggi saat dibuka.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(createReportProvider.notifier).refreshLocation();
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _descriptionController.dispose();
     super.dispose();

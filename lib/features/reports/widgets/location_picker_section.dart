@@ -5,7 +5,6 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../core/theme/theme.dart';
 import '../../incidents/add_report/widgets/section_step_header.dart';
-import '../create_report_state.dart';
 
 /// Peta interaktif dengan pin yang bisa digeser pengguna + input alamat manual.
 class LocationPickerSection extends StatefulWidget {
@@ -31,8 +30,8 @@ class LocationPickerSection extends StatefulWidget {
 }
 
 class _LocationPickerSectionState extends State<LocationPickerSection> {
-  static const double _moveThreshold = 0.00005;
-  static const Duration _moveDebounce = Duration(milliseconds: 200);
+  static const double _moveThreshold = 0.0002;
+  static const Duration _moveDebounce = Duration(milliseconds: 300);
   static const MarkerIcon _pinIcon = MarkerIcon(iconWidget: _ReportPin());
 
   late final MapController _controller;
@@ -51,9 +50,7 @@ class _LocationPickerSectionState extends State<LocationPickerSection> {
   @override
   void initState() {
     super.initState();
-    _controller = MapController.withPosition(
-      initPosition: widget.pin ?? kCreateReportDemoPin,
-    );
+    _controller = MapController.withUserPosition();
     _addressController = TextEditingController(text: widget.address);
     _lastReportedPoint = widget.pin;
   }
@@ -98,8 +95,9 @@ class _LocationPickerSectionState extends State<LocationPickerSection> {
     final center = region.center;
     _moveTimer?.cancel();
     _moveTimer = Timer(_moveDebounce, () {
-      final anchor = _lastReportedPoint ?? widget.pin ?? kCreateReportDemoPin;
-      if (!_beyondThreshold(anchor, center)) return;
+      final anchor = _lastReportedPoint ?? widget.pin;
+      // Belum ada titik (GPS masih berjalan): jangan menaruh pin dari geseran peta.
+      if (anchor == null || !_beyondThreshold(anchor, center)) return;
       _lastReportedPoint = center;
       _markerTarget = center;
       _flushMarkerMove();
@@ -198,7 +196,10 @@ class _LocationPickerSectionState extends State<LocationPickerSection> {
   Future<void> _refreshGps() async {
     await widget.onRefreshGps();
     if (!mounted) return;
-    await _controller.moveTo(widget.pin ?? _lastReportedPoint ?? kCreateReportDemoPin, animate: true);
+    final target = widget.pin ?? _lastReportedPoint;
+    if (target != null) {
+      await _controller.moveTo(target, animate: true);
+    }
   }
 
   @override
@@ -224,11 +225,7 @@ class _LocationPickerSectionState extends State<LocationPickerSection> {
                 child: Stack(
                   children: [
                     Positioned.fill(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onVerticalDragUpdate: (_) {},
-                        onVerticalDragEnd: (_) {},
-                        child: OSMFlutter(
+                      child: OSMFlutter(
                           key: const ValueKey<String>('create_report_map'),
                           controller: _controller,
                           osmOption: const OSMOption(
@@ -250,17 +247,17 @@ class _LocationPickerSectionState extends State<LocationPickerSection> {
                             if (ready && _placedMarker == null) {
                               final initial = _markerTarget ??
                                   _lastReportedPoint ??
-                                  widget.pin ??
-                                  kCreateReportDemoPin;
-                              _markerTarget = initial;
-                              _flushMarkerMove();
+                                  widget.pin;
+                              if (initial != null) {
+                                _markerTarget = initial;
+                                _flushMarkerMove();
+                              }
                             }
                           },
                           onMapMoved: _handleMapMoved,
                           onGeoPointLongPress: _handleLongPress,
                           onGeoPointClicked: _handleMarkerTap,
                         ),
-                      ),
                     ),
                     Positioned(
                       top: AppSpacing.spaceXs,
