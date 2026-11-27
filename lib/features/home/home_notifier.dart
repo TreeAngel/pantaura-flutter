@@ -21,7 +21,19 @@ class HomeNotifier extends AsyncNotifier<HomeData> {
     final safeZoneService = ref.read(safeZoneServiceProvider);
     final watchAreaService = ref.read(watchAreaServiceProvider);
     final authService = ref.read(authServiceProvider);
-    final isAuthenticated = ref.read(authNotifierProvider) is AuthAuthenticated;
+
+    // Sebelum mengambil data spesifik user (watch area & alert), pastikan data
+    // user tersedia. Bila belum ada di state auth, ambil lewat GET /auth/me.
+    final authUser = switch (ref.read(authNotifierProvider)) {
+      AuthAuthenticated(:final user) => user,
+      _ => null,
+    };
+    final currentUser = authUser ??
+        await authService
+            .getMe()
+            .then<UserModel?>((user) => user)
+            .catchError((_) => null);
+    final isAuthenticated = currentUser != null;
 
     // Jalankan request secara konkuren sesuai best practice Dart 3
     final incidentsFuture = activeWatchArea != null
@@ -61,18 +73,11 @@ class HomeNotifier extends AsyncNotifier<HomeData> {
             .catchError((_) => <AlertModel>[])
         : Future.value(<AlertModel>[]);
 
-    final currentUserFuture = authService
-        .getMe()
-        .then<UserModel?>((user) => user)
-        .catchError((_) => null);
-
-    final (paginatedIncidents, safeZones, watchAreas, alerts, currentUser) =
-        await (
+    final (paginatedIncidents, safeZones, watchAreas, alerts) = await (
       incidentsFuture,
       safeZonesFuture,
       watchAreasFuture,
       alertsFuture,
-      currentUserFuture,
     ).wait;
 
     final unreadCount = alerts.where((alert) => !alert.isRead).length;

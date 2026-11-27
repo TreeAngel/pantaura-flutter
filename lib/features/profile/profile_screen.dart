@@ -6,6 +6,7 @@ import '../../core/routing/app_routes.dart';
 import '../../core/theme/theme.dart';
 import '../../core/widgets/emergency_112_dialog.dart';
 import '../auth/auth_notifier.dart';
+import '../home/home_notifier.dart';
 import 'widgets/accessibility_section.dart';
 import 'widgets/help_section.dart';
 import 'widgets/logout_button.dart';
@@ -33,10 +34,15 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authNotifierProvider);
-    final user = switch (authState) {
+    final authUser = switch (authState) {
       AuthAuthenticated(:final user) => user,
       _ => null,
     };
+    // Fallback bila state auth belum terisi (mis. masuk langsung ke home).
+    final homeUser = ref.watch(
+      homeNotifierProvider.select((state) => state.value?.currentUser),
+    );
+    final user = authUser ?? homeUser;
 
     return Scaffold(
       backgroundColor: AppColors.surfaceCanvas,

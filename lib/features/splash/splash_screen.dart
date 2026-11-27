@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import '../../core/providers.dart';
 import '../../core/routing/app_routes.dart';
+import '../auth/auth_notifier.dart';
 import '../../core/theme/theme.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -80,6 +81,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       context.go(AppRoutes.login);
       return;
     }
+
+    // Token masih berlaku: pulihkan data user sebelum masuk home agar
+    // halaman profil tidak menampilkan data kosong.
+    await ref.read(authNotifierProvider.notifier).restoreSession();
+    if (!mounted) return;
     context.go(AppRoutes.home);
   }
 

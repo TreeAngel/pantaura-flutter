@@ -116,6 +116,25 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
+  /// Pulihkan sesi dari token tersimpan (dipanggil saat splash).
+  ///
+  /// Splash sudah memeriksa usia token; di sini token dipakai untuk memuat
+  /// profil via GET /auth/me agar state auth berisi data user yang valid.
+  Future<void> restoreSession() async {
+    final provider = ref.read(tokenProviderInstance);
+    final stored = await provider.readStoredToken();
+    if (stored == null || stored.token.isEmpty) {
+      state = const AuthUnauthenticated();
+      return;
+    }
+    try {
+      final user = await ref.read(authServiceProvider).getMe();
+      state = AuthAuthenticated(user: user, token: stored.token);
+    } catch (_) {
+      state = const AuthUnauthenticated();
+    }
+  }
+
   /// Reset error state
   void resetError() {
     if (state is AuthError) {

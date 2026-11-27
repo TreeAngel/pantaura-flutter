@@ -61,8 +61,7 @@ class AuthService {
   /// GET /auth/me
   Future<UserModel> getMe() async {
     final response = await _client.get<Map<String, dynamic>>(ApiConfig.me);
-    final data =
-        response.data?['data'] as Map<String, dynamic>? ?? response.data!;
+    final data = response.data?['data'] as Map<String, dynamic>;
     return UserModel.fromJson(data);
   }
 }
