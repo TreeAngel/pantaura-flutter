@@ -25,7 +25,7 @@ class AuthService {
         if (deviceName != null) ...{'device_name': deviceName},
       },
     );
-    final auth = AuthResponseModel.fromJson(response.data!);
+    final auth = AuthResponseModel.fromJson(response.data?['data']);
     await _client.tokenProvider.saveToken(auth.token);
     return auth;
   }
@@ -44,7 +44,7 @@ class AuthService {
         if (deviceName != null) ...{'device_name': deviceName},
       },
     );
-    final auth = AuthResponseModel.fromJson(response.data!);
+    final auth = AuthResponseModel.fromJson(response.data?['data']);
     await _client.tokenProvider.saveToken(auth.token);
     return auth;
   }
@@ -61,7 +61,8 @@ class AuthService {
   /// GET /auth/me
   Future<UserModel> getMe() async {
     final response = await _client.get<Map<String, dynamic>>(ApiConfig.me);
-    final data = response.data?['data'] as Map<String, dynamic>? ?? response.data!;
+    final data =
+        response.data?['data'] as Map<String, dynamic>? ?? response.data!;
     return UserModel.fromJson(data);
   }
 }

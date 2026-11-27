@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/providers.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/theme/theme.dart';
 import '../../core/widgets/app_button.dart';
@@ -29,6 +30,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(permissionServiceProvider).ensureAll();
+    });
   }
 
   @override
@@ -177,6 +182,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AuthState>(authNotifierProvider, (previous, next) {
+      if (previous is! AuthAuthenticated && next is AuthAuthenticated) {
+        ref.read(permissionServiceProvider).ensureAll();
+      }
+    });
     final homeAsync = ref.watch(homeNotifierProvider);
     final authState = ref.watch(authNotifierProvider);
     final fetchedName = homeAsync.value?.currentUser?.name;

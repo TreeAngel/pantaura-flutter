@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'network/api_client.dart';
 import 'services/auth_service.dart';
 import 'services/incident_service.dart';
+import 'services/permission_service.dart';
 import 'services/report_service.dart';
 import 'services/safe_zone_service.dart';
 import 'services/watch_area_service.dart';
@@ -36,4 +37,8 @@ final safeZoneServiceProvider = Provider<SafeZoneService>((ref) {
 
 final watchAreaServiceProvider = Provider<WatchAreaService>((ref) {
   return WatchAreaService(ref.watch(apiClientProvider));
+});
+
+final permissionServiceProvider = Provider<PermissionService>((ref) {
+  return PermissionService();
 });

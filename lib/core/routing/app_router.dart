@@ -4,7 +4,10 @@ import 'package:material_ui/material_ui.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/home/home_screen.dart';
-import '../../features/incidents/incident_detail_screen.dart';
+import '../../features/incidents/add_report/add_report_screen.dart';
+import '../../features/incidents/detail/incident_detail_screen.dart';
+import '../../features/incidents/recovered/recovered_screen.dart';
+import '../../features/map/map_screen.dart';
 import '../../features/splash/splash_screen.dart';
 import '../theme/theme.dart';
 import '../widgets/pantaura_bottom_nav.dart';
@@ -43,9 +46,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.map,
-                builder: (context, state) => const _PlaceholderTabScreen(
-                  title: 'Peta Bencana',
-                ),
+                builder: (context, state) => const MapScreen(),
               ),
             ],
           ),
@@ -82,6 +83,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final id = state.pathParameters['id'] ?? '';
           return IncidentDetailScreen(incidentId: id);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.incidentAddReportPath,
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return AddReportScreen(incidentId: id);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.incidentRecoveredPath,
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return RecoveredScreen(incidentId: id);
         },
       ),
     ],

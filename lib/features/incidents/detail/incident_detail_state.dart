@@ -1,4 +1,4 @@
-import '../../core/models/api_models.dart';
+import '../../../core/models/api_models.dart';
 
 /// Jenis entri kronologi: berasal dari laporan warga atau resolusi petugas.
 enum TimelineEntryType { report, resolution }

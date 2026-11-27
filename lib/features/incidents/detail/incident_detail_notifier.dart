@@ -2,8 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/models/api_models.dart';
-import '../../core/providers.dart';
+import '../../../core/models/api_models.dart';
+import '../../../core/providers.dart';
 import 'incident_detail_state.dart';
 
 /// Notifier untuk memuat dan memanipulasi data halaman detail insiden.

@@ -44,7 +44,7 @@ class IncidentService {
     return list.map((e) => IncidentSummaryModel.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  /// GET /incidents/{incident}
+  /// GET /{incident}
   Future<IncidentDetailModel> getIncidentDetail(String incidentId) async {
     final response = await _client.get<Map<String, dynamic>>(
       ApiConfig.incidentDetail(incidentId),

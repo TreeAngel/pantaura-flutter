@@ -26,10 +26,10 @@ class HomeIncidentCard extends StatelessWidget {
 
   IconData _disasterIcon(String type) {
     return switch (type) {
-      'flood' => Icons.tsunami_rounded,
+      'flood' => Icons.flood_rounded,
       'earthquake' => Icons.public_rounded,
       'landslide' => Icons.landslide_rounded,
-      'fire' => Icons.local_fire_department_rounded,
+      'fire' => Icons.whatshot_rounded,
       _ => Icons.warning_amber_rounded,
     };
   }
